@@ -32,7 +32,7 @@ import com.example.snaptag.ui.screens.StatsScreen
 import com.example.snaptag.ui.screens.StocksScreen
 import com.example.snaptag.ui.theme.SnapTagTheme
 import com.example.snaptag.viewmodel.BillingViewModel
-import com.example.snaptag.viewmodel.BillingViewModelFactory
+import com.example.snaptag.viewmodel.ProductViewModel
 import com.example.snaptag.viewmodel.ProductViewModelFactory
 import com.example.snaptag.viewmodel.StatsViewModel
 import kotlinx.coroutines.delay
@@ -43,7 +43,7 @@ class MainActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val repository = (application as SnapTagApp).repository
-        val viewModelFactory = ProductViewModelFactory(repository)
+        val viewModelFactory = ProductViewModelFactory(repository, application)
         setContent {
             SnapTagTheme {
                 val navController = rememberNavController()
@@ -64,8 +64,12 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
             })
         }
         composable("stocks") {
+            val activity = LocalContext.current as ComponentActivity
             MainScaffold(navController) {
-                StocksScreen(viewModelFactory = viewModelFactory)
+                StocksScreen(
+                    viewModelStoreOwner = activity,
+                    viewModelFactory = viewModelFactory
+                )
             }
         }
         composable("billing") {
@@ -75,7 +79,11 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
                     viewModelStoreOwner = activity,
                     factory = viewModelFactory
                 )
-                BillingScreen(viewModel = billingViewModel)
+                val productViewModel: ProductViewModel = viewModel(
+                    viewModelStoreOwner = activity,
+                    factory = viewModelFactory
+                )
+                BillingScreen(viewModel = billingViewModel, productViewModel = productViewModel)
             }
         }
         composable("stats") {
@@ -85,8 +93,10 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
             }
         }
         composable("settings") {
+            val activity = LocalContext.current as ComponentActivity
             MainScaffold(navController) {
                 SettingsScreen(
+                    viewModelStoreOwner = activity,
                     viewModelFactory = viewModelFactory,
                     onNavigateToAbout = { navController.navigate("about") }
                 )

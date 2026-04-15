@@ -22,6 +22,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelStoreOwner
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.*
 import com.example.snaptag.viewmodel.ProductViewModel
@@ -29,8 +30,14 @@ import com.example.snaptag.viewmodel.ProductViewModelFactory
 import java.util.Locale
 
 @Composable
-fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
-    val viewModel: ProductViewModel = viewModel(factory = viewModelFactory)
+fun StocksScreen(
+    viewModelStoreOwner: ViewModelStoreOwner,
+    viewModelFactory: ProductViewModelFactory
+) {
+    val viewModel: ProductViewModel = viewModel(
+        viewModelStoreOwner = viewModelStoreOwner,
+        factory = viewModelFactory
+    )
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     

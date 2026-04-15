@@ -14,6 +14,12 @@ import androidx.compose.material.icons.automirrored.filled.List
 import androidx.compose.material.icons.filled.*
 import androidx.compose.ui.window.Popup
 import androidx.compose.ui.window.PopupProperties
+import coil.compose.AsyncImage
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.draw.clip
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.border
+import com.example.snaptag.viewmodel.ProductViewModel
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -33,16 +39,17 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BillingScreen(viewModel: BillingViewModel) {
+fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewModel) {
     val cartItems by viewModel.cartItems.collectAsState()
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val totalItems by viewModel.totalItems.collectAsState()
     val totalAmount by viewModel.totalAmount.collectAsState()
+    val paymentQrUri by productViewModel.paymentQrUri.collectAsState()
 
     var showScanner by remember { mutableStateOf(false) }
-    var showConfirmDialog by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
+    var showPaymentDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -220,7 +227,7 @@ fun BillingScreen(viewModel: BillingViewModel) {
                 }
 
                 Button(
-                    onClick = { if (cartItems.isNotEmpty()) showConfirmDialog = true },
+                    onClick = { if (cartItems.isNotEmpty()) showPaymentDialog = true },
                     modifier = Modifier.weight(1f),
                     enabled = cartItems.isNotEmpty()
                 ) {
@@ -301,21 +308,68 @@ fun BillingScreen(viewModel: BillingViewModel) {
         )
     }
 
-    if (showConfirmDialog) {
+    if (showPaymentDialog) {
         AlertDialog(
-            onDismissRequest = { showConfirmDialog = false },
-            title = { Text("Confirm Bill?") },
-            text = { Text("Total Items: $totalItems\nTotal Amount: ₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}") },
-            confirmButton = {
-                Button(onClick = {
-                    viewModel.generateBill {
-                        Toast.makeText(context, "Bill generated successfully", Toast.LENGTH_LONG).show()
-                        showConfirmDialog = false
+            onDismissRequest = { showPaymentDialog = false },
+            title = { Text("Payment", fontWeight = FontWeight.Bold) },
+            text = {
+                Column(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(240.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(1.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp)),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (paymentQrUri != null) {
+                            AsyncImage(
+                                model = paymentQrUri,
+                                contentDescription = "Payment QR",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(48.dp))
+                                Text("No QR Code Set", style = MaterialTheme.typography.bodySmall)
+                                Text("(Go to Settings to add one)", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
                     }
-                }) { Text("Confirm") }
+                    
+                    Spacer(modifier = Modifier.height(16.dp))
+                    
+                    Text("Total Amount", style = MaterialTheme.typography.bodyMedium)
+                    Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 
+                        style = MaterialTheme.typography.headlineMedium, 
+                        fontWeight = FontWeight.ExtraBold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        viewModel.generateBill {
+                            Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
+                            showPaymentDialog = false
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Mark as Paid")
+                }
             },
             dismissButton = {
-                TextButton(onClick = { showConfirmDialog = false }) { Text("Cancel") }
+                TextButton(
+                    onClick = { showPaymentDialog = false },
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text("Cancel / Unpaid")
+                }
             }
         )
     }

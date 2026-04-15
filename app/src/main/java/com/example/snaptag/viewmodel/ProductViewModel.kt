@@ -1,5 +1,9 @@
 package com.example.snaptag.viewmodel
 
+import android.app.Application
+import android.content.Context
+import android.content.SharedPreferences
+import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
@@ -13,7 +17,16 @@ import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.util.UUID
 
-class ProductViewModel(private val repository: ProductRepository) : ViewModel() {
+class ProductViewModel(private val repository: ProductRepository, application: Application) : AndroidViewModel(application) {
+    private val sharedPrefs: SharedPreferences = application.getSharedPreferences("SnapTagPrefs", Context.MODE_PRIVATE)
+
+    private val _paymentQrUri = MutableStateFlow(sharedPrefs.getString("payment_qr_uri", null))
+    val paymentQrUri: StateFlow<String?> = _paymentQrUri.asStateFlow()
+
+    fun savePaymentQrUri(uri: String?) {
+        sharedPrefs.edit().putString("payment_qr_uri", uri).apply()
+        _paymentQrUri.value = uri
+    }
     val products: StateFlow<List<Product>> = repository.allProducts
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
@@ -62,11 +75,14 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
     }
 }
 
-class ProductViewModelFactory(private val repository: ProductRepository) : ViewModelProvider.Factory {
+class ProductViewModelFactory(
+    private val repository: ProductRepository,
+    private val application: Application
+) : ViewModelProvider.Factory {
     override fun <T : ViewModel> create(modelClass: Class<T>): T {
         if (modelClass.isAssignableFrom(ProductViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")
-            return ProductViewModel(repository) as T
+            return ProductViewModel(repository, application) as T
         }
         if (modelClass.isAssignableFrom(StatsViewModel::class.java)) {
             @Suppress("UNCHECKED_CAST")

@@ -6,7 +6,13 @@ import android.os.Environment
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
+import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.material.icons.Icons
@@ -18,6 +24,7 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.lifecycle.ViewModelStoreOwner
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.TopBar
 import com.example.snaptag.viewmodel.ProductViewModel
@@ -33,15 +40,32 @@ import java.io.FileOutputStream
 
 @Composable
 fun SettingsScreen(
+    viewModelStoreOwner: ViewModelStoreOwner,
     viewModelFactory: ProductViewModelFactory,
     onNavigateToAbout: () -> Unit
 ) {
-    val viewModel: ProductViewModel = viewModel(factory = viewModelFactory)
+    val viewModel: ProductViewModel = viewModel(
+        viewModelStoreOwner = viewModelStoreOwner,
+        factory = viewModelFactory
+    )
     val products by viewModel.products.collectAsState()
+    val paymentQrUri by viewModel.paymentQrUri.collectAsState()
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showClearDialog by remember { mutableStateOf(false) }
+
+    val qrPickerLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.GetContent(),
+        onResult = { uri ->
+            uri?.let {
+                // Persist permission if needed or copy to internal storage
+                // For simplicity, we just save the URI string
+                context.contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                viewModel.savePaymentQrUri(it.toString())
+            }
+        }
+    )
 
     val createDocumentLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.CreateDocument("application/json"),
@@ -102,6 +126,42 @@ fun SettingsScreen(
                     subtitle = "English (US)",
                     onClick = {}
                 )
+            }
+
+            item {
+                SettingsHeader("Payment Settings")
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(16.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(200.dp)
+                            .clip(RoundedCornerShape(12.dp))
+                            .border(2.dp, MaterialTheme.colorScheme.outline, RoundedCornerShape(12.dp))
+                            .clickable { qrPickerLauncher.launch("image/*") },
+                        contentAlignment = Alignment.Center
+                    ) {
+                        if (paymentQrUri != null) {
+                            AsyncImage(
+                                model = paymentQrUri,
+                                contentDescription = "Payment QR",
+                                modifier = Modifier.fillMaxSize(),
+                                contentScale = ContentScale.Fit
+                            )
+                        } else {
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.QrCode, contentDescription = null, modifier = Modifier.size(48.dp))
+                                Text("Tap to add QR", style = MaterialTheme.typography.bodySmall)
+                            }
+                        }
+                    }
+                    TextButton(onClick = { qrPickerLauncher.launch("image/*") }) {
+                        Text(if (paymentQrUri == null) "Select Payment QR" else "Change Payment QR")
+                    }
+                }
             }
 
             item {
