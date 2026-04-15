@@ -32,4 +32,18 @@ class ProductRepository(private val productDao: ProductDao) {
     suspend fun deleteAll() {
         productDao.deleteAll()
     }
+
+    val totalProductCount: Flow<Int> = productDao.getTotalProductCount()
+
+    val totalStockUnits: Flow<Int> = productDao.getTotalStockUnits().map { it ?: 0 }
+
+    val totalInventoryValue: Flow<Double> = productDao.getTotalInventoryValue().map { it ?: 0.0 }
+
+    val topProducts: Flow<List<Product>> = productDao.getTopProducts().map { entities ->
+        entities.map { it.toProduct() }
+    }
+
+    val lowStockProducts: Flow<List<Product>> = productDao.getLowStockProducts().map { entities ->
+        entities.map { it.toProduct() }
+    }
 }

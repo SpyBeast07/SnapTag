@@ -25,4 +25,19 @@ interface ProductDao {
 
     @Query("DELETE FROM products")
     suspend fun deleteAll()
+
+    @Query("SELECT COUNT(*) FROM products")
+    fun getTotalProductCount(): Flow<Int>
+
+    @Query("SELECT SUM(stock) FROM products")
+    fun getTotalStockUnits(): Flow<Int?>
+
+    @Query("SELECT SUM(price * stock) FROM products")
+    fun getTotalInventoryValue(): Flow<Double?>
+
+    @Query("SELECT * FROM products ORDER BY stock DESC LIMIT 5")
+    fun getTopProducts(): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE stock < 5")
+    fun getLowStockProducts(): Flow<List<ProductEntity>>
 }

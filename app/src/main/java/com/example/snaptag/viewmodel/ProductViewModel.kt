@@ -68,6 +68,10 @@ class ProductViewModelFactory(private val repository: ProductRepository) : ViewM
             @Suppress("UNCHECKED_CAST")
             return ProductViewModel(repository) as T
         }
+        if (modelClass.isAssignableFrom(StatsViewModel::class.java)) {
+            @Suppress("UNCHECKED_CAST")
+            return StatsViewModel(repository) as T
+        }
         throw IllegalArgumentException("Unknown ViewModel class")
     }
 }

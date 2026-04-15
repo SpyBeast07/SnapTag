@@ -22,12 +22,15 @@ import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
 import androidx.navigation.compose.rememberNavController
+import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.snaptag.ui.components.BottomNavBar
 import com.example.snaptag.ui.screens.AboutScreen
 import com.example.snaptag.ui.screens.SettingsScreen
+import com.example.snaptag.ui.screens.StatsScreen
 import com.example.snaptag.ui.screens.StocksScreen
 import com.example.snaptag.ui.theme.SnapTagTheme
 import com.example.snaptag.viewmodel.ProductViewModelFactory
+import com.example.snaptag.viewmodel.StatsViewModel
 import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
@@ -59,6 +62,12 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
         composable("stocks") {
             MainScaffold(navController) {
                 StocksScreen(viewModelFactory = viewModelFactory)
+            }
+        }
+        composable("stats") {
+            MainScaffold(navController) {
+                val statsViewModel: StatsViewModel = viewModel(factory = viewModelFactory)
+                StatsScreen(viewModel = statsViewModel)
             }
         }
         composable("settings") {

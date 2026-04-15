@@ -2,6 +2,7 @@ package com.example.snaptag.ui.components
 
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Inventory
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
@@ -14,6 +15,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 fun BottomNavBar(navController: NavController) {
     val items = listOf(
         NavigationItem("stocks", "Products", Icons.Default.Inventory),
+        NavigationItem("stats", "Stats", Icons.Default.Assessment),
         NavigationItem("settings", "Settings", Icons.Default.Settings)
     )
 
