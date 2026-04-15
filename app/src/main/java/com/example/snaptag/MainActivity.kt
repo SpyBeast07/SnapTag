@@ -79,7 +79,9 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
             }
         }
         composable("about") {
-            AboutScreen(onNavigateBack = { navController.popBackStack() })
+            MainScaffold(navController) {
+                AboutScreen(onNavigateBack = { navController.popBackStack() })
+            }
         }
     }
 }
@@ -91,15 +93,16 @@ fun MainScaffold(
 ) {
     Scaffold(
         modifier = Modifier.fillMaxSize(),
-        bottomBar = { BottomNavBar(navController) }
+        bottomBar = { BottomNavBar(navController) },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        // The padding here includes bottom navigation height.
-        // We do NOT apply top padding here because each Screen has its own Scaffold
-        // and TopBar which will handle the Status Bar (safe area) automatically.
+        // The padding here includes bottom navigation height and system insets.
+        // We apply only the bottom padding and consume it to prevent double-padding in inner Scaffolds.
         Box(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(bottom = padding.calculateBottomPadding())
+                .consumeWindowInsets(PaddingValues(bottom = padding.calculateBottomPadding()))
         ) {
             content()
         }

@@ -58,9 +58,6 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
         (it.barcode?.contains(searchQuery, ignoreCase = true) ?: false)
     }
 
-    val totalItems = products.size
-    val totalValue = products.sumOf { it.price * it.stock }
-
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = { TopBar("SnapTag - Stocks") },
@@ -83,54 +80,12 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
                     .padding(padding)
                     .padding(horizontal = 16.dp)
             ) {
-                Card(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 8.dp),
-                    colors = CardDefaults.cardColors(
-                        containerColor = MaterialTheme.colorScheme.primaryContainer
-                    )
-                ) {
-                    Column(modifier = Modifier.padding(16.dp)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Total Items:",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = "$totalItems",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            Text(
-                                text = "Total Value:",
-                                style = MaterialTheme.typography.titleMedium
-                            )
-                            Text(
-                                text = "₹${String.format(Locale.getDefault(), "%.2f", totalValue)}",
-                                style = MaterialTheme.typography.titleLarge,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
-                }
-
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.updateSearchQuery(it) },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(vertical = 8.dp),
+                        .padding(top = 8.dp),
                     placeholder = { Text("Search by name or barcode") },
                     leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
                     trailingIcon = {
@@ -154,6 +109,13 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
                         }
                     },
                     singleLine = true
+                )
+
+                Text(
+                    text = "Total Items: ${filteredProducts.size}",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.secondary,
+                    modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
                 )
 
                 LazyColumn(
