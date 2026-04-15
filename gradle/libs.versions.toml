@@ -1,4 +1,5 @@
 [versions]
+ksp = "2.3.6"
 agp = "9.1.1"
 coreKtx = "1.10.1"
 junit = "4.13.2"
@@ -41,5 +42,6 @@ room-ktx = { group = "androidx.room", name = "room-ktx", version.ref = "room" }
 room-compiler = { group = "androidx.room", name = "room-compiler", version.ref = "room" }
 
 [plugins]
+ksp = { id = "com.google.devtools.ksp", version.ref = "ksp" }
 android-application = { id = "com.android.application", version.ref = "agp" }
 kotlin-compose = { id = "org.jetbrains.kotlin.plugin.compose", version.ref = "kotlin" }
