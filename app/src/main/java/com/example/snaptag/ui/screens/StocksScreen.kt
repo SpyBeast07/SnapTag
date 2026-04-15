@@ -86,7 +86,15 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
                     items(filteredProducts) { product ->
                         ProductItem(
                             product = product,
-                            onClick = { selectedProduct = product }
+                            onClick = { selectedProduct = product },
+                            onIncrement = {
+                                viewModel.updateProduct(product.copy(stock = product.stock + 1))
+                            },
+                            onDecrement = {
+                                if (product.stock > 0) {
+                                    viewModel.updateProduct(product.copy(stock = product.stock - 1))
+                                }
+                            }
                         )
                     }
                 }
