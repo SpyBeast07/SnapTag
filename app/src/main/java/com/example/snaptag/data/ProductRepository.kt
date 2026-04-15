@@ -24,4 +24,12 @@ class ProductRepository(private val productDao: ProductDao) {
     suspend fun deleteById(id: String) {
         productDao.deleteById(id)
     }
+
+    suspend fun insertAll(products: List<Product>) {
+        productDao.insertAll(products.map { it.toEntity() })
+    }
+
+    suspend fun deleteAll() {
+        productDao.deleteAll()
+    }
 }

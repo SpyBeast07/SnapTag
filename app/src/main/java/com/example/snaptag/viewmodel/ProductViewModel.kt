@@ -47,6 +47,18 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
             repository.deleteById(productId)
         }
     }
+
+    fun clearAllData() {
+        viewModelScope.launch {
+            repository.deleteAll()
+        }
+    }
+
+    fun importProducts(products: List<Product>) {
+        viewModelScope.launch {
+            repository.insertAll(products)
+        }
+    }
 }
 
 class ProductViewModelFactory(private val repository: ProductRepository) : ViewModelProvider.Factory {

@@ -63,7 +63,7 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
         }
         composable("settings") {
             MainScaffold(navController) {
-                SettingsScreen()
+                SettingsScreen(viewModelFactory = viewModelFactory)
             }
         }
         composable("about") {
