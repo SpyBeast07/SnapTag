@@ -14,13 +14,16 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.*
 import com.example.snaptag.viewmodel.ProductViewModel
 import com.example.snaptag.viewmodel.ProductViewModelFactory
+import java.util.Locale
 
 @Composable
 fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
@@ -46,6 +49,9 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
         it.name.contains(searchQuery, ignoreCase = true)
     }
 
+    val totalItems = products.size
+    val totalValue = products.sumOf { it.price * it.stock }
+
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = { TopBar("SnapTag - Stocks") },
@@ -68,6 +74,48 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
                     .padding(padding)
                     .padding(horizontal = 16.dp)
             ) {
+                Card(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 8.dp),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer
+                    )
+                ) {
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Total Items:",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "$totalItems",
+                                style = MaterialTheme.typography.titleMedium,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text(
+                                text = "Total Value:",
+                                style = MaterialTheme.typography.titleMedium
+                            )
+                            Text(
+                                text = "₹${String.format(Locale.getDefault(), "%.2f", totalValue)}",
+                                style = MaterialTheme.typography.titleLarge,
+                                color = MaterialTheme.colorScheme.primary,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+                    }
+                }
+
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { viewModel.updateSearchQuery(it) },
