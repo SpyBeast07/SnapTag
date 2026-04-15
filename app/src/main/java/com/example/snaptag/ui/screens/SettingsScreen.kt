@@ -1,7 +1,6 @@
 package com.example.snaptag.ui.screens
 
 import android.content.Context
-import android.content.Intent
 import android.net.Uri
 import android.os.Environment
 import android.widget.Toast
@@ -33,7 +32,10 @@ import java.io.File
 import java.io.FileOutputStream
 
 @Composable
-fun SettingsScreen(viewModelFactory: ProductViewModelFactory) {
+fun SettingsScreen(
+    viewModelFactory: ProductViewModelFactory,
+    onNavigateToAbout: () -> Unit
+) {
     val viewModel: ProductViewModel = viewModel(factory = viewModelFactory)
     val products by viewModel.products.collectAsState()
     val context = LocalContext.current
@@ -94,22 +96,6 @@ fun SettingsScreen(viewModelFactory: ProductViewModelFactory) {
             }
 
             item {
-                SettingsHeader("Account")
-                SettingsItem(
-                    icon = Icons.Default.Person,
-                    title = "Profile",
-                    subtitle = "Edit your personal info",
-                    onClick = {}
-                )
-                SettingsItem(
-                    icon = Icons.Default.Security,
-                    title = "Privacy & Security",
-                    subtitle = "Password and data usage",
-                    onClick = {}
-                )
-            }
-
-            item {
                 SettingsHeader("Data & Maintenance")
                 SettingsItem(
                     icon = Icons.Default.Backup,
@@ -136,12 +122,12 @@ fun SettingsScreen(viewModelFactory: ProductViewModelFactory) {
             }
 
             item {
-                SettingsHeader("App Info")
+                SettingsHeader("Support")
                 SettingsItem(
                     icon = Icons.Default.Info,
-                    title = "Version",
-                    subtitle = "1.0.0 (Stable)",
-                    onClick = {}
+                    title = "About SnapTag",
+                    subtitle = "Logo, Description, Privacy & Terms",
+                    onClick = onNavigateToAbout
                 )
             }
         }

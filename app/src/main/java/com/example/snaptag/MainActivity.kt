@@ -63,13 +63,14 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
         }
         composable("settings") {
             MainScaffold(navController) {
-                SettingsScreen(viewModelFactory = viewModelFactory)
+                SettingsScreen(
+                    viewModelFactory = viewModelFactory,
+                    onNavigateToAbout = { navController.navigate("about") }
+                )
             }
         }
         composable("about") {
-            MainScaffold(navController) {
-                AboutScreen()
-            }
+            AboutScreen(onNavigateBack = { navController.popBackStack() })
         }
     }
 }
