@@ -13,13 +13,42 @@ import com.example.snaptag.data.Product
 fun ProductDialog(
     product: Product? = null,
     initialPrice: String = "",
+    existingProducts: List<Product> = emptyList(),
     onDismiss: () -> Unit,
     onSave: (name: String, price: Double, stock: Int) -> Unit,
+    onUpdateExisting: ((Product, Int) -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
     var name by remember { mutableStateOf(product?.name ?: "") }
     var price by remember { mutableStateOf(product?.price?.toString() ?: initialPrice) }
     var stock by remember { mutableStateOf(product?.stock?.toString() ?: "") }
+    var showDuplicateDialog by remember { mutableStateOf<Product?>(null) }
+
+    if (showDuplicateDialog != null) {
+        val existing = showDuplicateDialog!!
+        AlertDialog(
+            onDismissRequest = { showDuplicateDialog = null },
+            title = { Text("Duplicate Product Found") },
+            text = { Text("A product named '${existing.name}' already exists. Would you like to add ${stock.toIntOrNull() ?: 0} units to the existing stock?") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val s = stock.toIntOrNull() ?: 0
+                        onUpdateExisting?.invoke(existing, s)
+                        showDuplicateDialog = null
+                        onDismiss()
+                    }
+                ) {
+                    Text("Add to Existing")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDuplicateDialog = null }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -54,7 +83,15 @@ fun ProductDialog(
                     val p = price.toDoubleOrNull() ?: 0.0
                     val s = stock.toIntOrNull() ?: 0
                     if (name.isNotBlank()) {
-                        onSave(name, p, s)
+                        val duplicate = if (product == null) {
+                            existingProducts.find { it.name.equals(name.trim(), ignoreCase = true) }
+                        } else null
+                        
+                        if (duplicate != null) {
+                            showDuplicateDialog = duplicate
+                        } else {
+                            onSave(name, p, s)
+                        }
                     }
                 }
             ) {

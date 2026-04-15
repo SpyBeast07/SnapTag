@@ -165,9 +165,14 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
     if (isAddingProduct) {
         ProductDialog(
             initialPrice = scannedPrice,
+            existingProducts = products,
             onDismiss = { isAddingProduct = false },
             onSave = { name, price, stock ->
                 viewModel.addProduct(name, price, stock)
+                isAddingProduct = false
+            },
+            onUpdateExisting = { existing, addedStock ->
+                viewModel.updateProduct(existing.copy(stock = existing.stock + addedStock))
                 isAddingProduct = false
             }
         )
