@@ -18,6 +18,7 @@ import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.platform.LocalContext
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -25,10 +26,13 @@ import androidx.navigation.compose.rememberNavController
 import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.snaptag.ui.components.BottomNavBar
 import com.example.snaptag.ui.screens.AboutScreen
+import com.example.snaptag.ui.screens.BillingScreen
 import com.example.snaptag.ui.screens.SettingsScreen
 import com.example.snaptag.ui.screens.StatsScreen
 import com.example.snaptag.ui.screens.StocksScreen
 import com.example.snaptag.ui.theme.SnapTagTheme
+import com.example.snaptag.viewmodel.BillingViewModel
+import com.example.snaptag.viewmodel.BillingViewModelFactory
 import com.example.snaptag.viewmodel.ProductViewModelFactory
 import com.example.snaptag.viewmodel.StatsViewModel
 import kotlinx.coroutines.delay
@@ -62,6 +66,16 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
         composable("stocks") {
             MainScaffold(navController) {
                 StocksScreen(viewModelFactory = viewModelFactory)
+            }
+        }
+        composable("billing") {
+            val activity = LocalContext.current as ComponentActivity
+            MainScaffold(navController) {
+                val billingViewModel: BillingViewModel = viewModel(
+                    viewModelStoreOwner = activity,
+                    factory = viewModelFactory
+                )
+                BillingScreen(viewModel = billingViewModel)
             }
         }
         composable("stats") {

@@ -4,6 +4,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Inventory
+import androidx.compose.material.icons.filled.Receipt
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -15,6 +16,7 @@ import androidx.navigation.compose.currentBackStackEntryAsState
 fun BottomNavBar(navController: NavController) {
     val items = listOf(
         NavigationItem("stocks", "Products", Icons.Default.Inventory),
+        NavigationItem("billing", "Billing", Icons.Default.Receipt),
         NavigationItem("stats", "Stats", Icons.Default.Assessment),
         NavigationItem("settings", "Settings", Icons.Default.Settings)
     )

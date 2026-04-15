@@ -46,4 +46,8 @@ class ProductRepository(private val productDao: ProductDao) {
     val lowStockProducts: Flow<List<Product>> = productDao.getLowStockProducts().map { entities ->
         entities.map { it.toProduct() }
     }
+
+    suspend fun getProductById(id: String): Product? {
+        return productDao.getProductById(id)?.toProduct()
+    }
 }

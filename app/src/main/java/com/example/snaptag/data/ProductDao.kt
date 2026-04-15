@@ -40,4 +40,7 @@ interface ProductDao {
 
     @Query("SELECT * FROM products WHERE stock < 5")
     fun getLowStockProducts(): Flow<List<ProductEntity>>
+
+    @Query("SELECT * FROM products WHERE id = :id")
+    suspend fun getProductById(id: String): ProductEntity?
 }

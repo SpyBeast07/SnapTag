@@ -80,35 +80,20 @@ fun StocksScreen(viewModelFactory: ProductViewModelFactory) {
                     .padding(padding)
                     .padding(horizontal = 16.dp)
             ) {
-                OutlinedTextField(
-                    value = searchQuery,
-                    onValueChange = { viewModel.updateSearchQuery(it) },
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(top = 8.dp),
-                    placeholder = { Text("Search by name or barcode") },
-                    leadingIcon = { Icon(Icons.Default.Search, contentDescription = null) },
-                    trailingIcon = {
-                        Row {
-                            if (searchQuery.isNotEmpty()) {
-                                IconButton(onClick = { viewModel.updateSearchQuery("") }) {
-                                    Icon(Icons.Default.Clear, contentDescription = "Clear Search")
-                                }
-                            }
-                            IconButton(onClick = {
-                                val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
-                                if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
-                                    isSearchScanning = true
-                                    showScanner = true
-                                } else {
-                                    permissionLauncher.launch(Manifest.permission.CAMERA)
-                                }
-                            }) {
-                                Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan to Search")
-                            }
+                SearchBar(
+                    modifier = Modifier.padding(top = 8.dp),
+                    query = searchQuery,
+                    onQueryChange = { viewModel.updateSearchQuery(it) },
+                    onScanClick = {
+                        val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                        if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                            isSearchScanning = true
+                            showScanner = true
+                        } else {
+                            permissionLauncher.launch(Manifest.permission.CAMERA)
                         }
                     },
-                    singleLine = true
+                    placeholder = "Search by name or barcode"
                 )
 
                 Text(
