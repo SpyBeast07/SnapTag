@@ -12,24 +12,27 @@ import com.example.snaptag.data.Product
 @Composable
 fun ProductDialog(
     product: Product? = null,
+    initialName: String = "",
     initialPrice: String = "",
+    initialBarcode: String = "",
     existingProducts: List<Product> = emptyList(),
     onDismiss: () -> Unit,
-    onSave: (name: String, price: Double, stock: Int) -> Unit,
+    onSave: (name: String, price: Double, stock: Int, barcode: String?) -> Unit,
     onUpdateExisting: ((Product, Int) -> Unit)? = null,
     onDelete: (() -> Unit)? = null
 ) {
-    var name by remember { mutableStateOf(product?.name ?: "") }
+    var name by remember { mutableStateOf(product?.name ?: initialName) }
     var price by remember { mutableStateOf(product?.price?.toString() ?: initialPrice) }
-    var stock by remember { mutableStateOf(product?.stock?.toString() ?: "") }
+    var stock by remember { mutableStateOf(product?.stock?.toString() ?: "1") }
+    var barcode by remember { mutableStateOf(product?.barcode ?: initialBarcode) }
     var showDuplicateDialog by remember { mutableStateOf<Product?>(null) }
 
     if (showDuplicateDialog != null) {
         val existing = showDuplicateDialog!!
         AlertDialog(
             onDismissRequest = { showDuplicateDialog = null },
-            title = { Text("Duplicate Product Found") },
-            text = { Text("A product named '${existing.name}' already exists. Would you like to add ${stock.toIntOrNull() ?: 0} units to the existing stock?") },
+            title = { Text("Product Already Exists") },
+            text = { Text("A product with name '${existing.name}' or barcode '${existing.barcode}' already exists. Would you like to add ${stock.toIntOrNull() ?: 0} units to the existing stock?") },
             confirmButton = {
                 Button(
                     onClick = {
@@ -62,6 +65,12 @@ fun ProductDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 TextField(
+                    value = barcode,
+                    onValueChange = { barcode = it },
+                    label = { Text("Barcode") },
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextField(
                     value = price,
                     onValueChange = { price = it },
                     label = { Text("Price (₹)") },
@@ -71,7 +80,7 @@ fun ProductDialog(
                 TextField(
                     value = stock,
                     onValueChange = { stock = it },
-                    label = { Text("Initial Stock") },
+                    label = { Text("Stock") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -84,13 +93,16 @@ fun ProductDialog(
                     val s = stock.toIntOrNull() ?: 0
                     if (name.isNotBlank()) {
                         val duplicate = if (product == null) {
-                            existingProducts.find { it.name.equals(name.trim(), ignoreCase = true) }
+                            existingProducts.find { 
+                                it.name.trim().equals(name.trim(), ignoreCase = true) || 
+                                (it.barcode != null && barcode.isNotBlank() && it.barcode == barcode.trim())
+                            }
                         } else null
                         
                         if (duplicate != null) {
                             showDuplicateDialog = duplicate
                         } else {
-                            onSave(name, p, s)
+                            onSave(name, p, s, if (barcode.isBlank()) null else barcode.trim())
                         }
                     }
                 }

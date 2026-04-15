@@ -1,12 +1,12 @@
 package com.example.snaptag.ui.components
 
+import android.util.Log
 import android.util.Size
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
@@ -21,6 +21,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import com.google.mlkit.vision.barcode.BarcodeScannerOptions
+import com.google.mlkit.vision.barcode.BarcodeScanning
+import com.google.mlkit.vision.barcode.common.Barcode
 import com.google.mlkit.vision.common.InputImage
 import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
@@ -30,20 +33,44 @@ import java.util.concurrent.Executors
 @Composable
 fun CameraScannerView(
     onPriceConfirmed: (String) -> Unit,
-    onDismiss: () -> Unit
+    onBarcodeConfirmed: (String) -> Unit,
+    onDismiss: () -> Unit,
+    isBarcodeOnly: Boolean = false
 ) {
     val context = LocalContext.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
+    
     val textRecognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
+    val barcodeScanner = remember { 
+        // Exclude QR code as requested
+        val options = BarcodeScannerOptions.Builder()
+            .setBarcodeFormats(
+                Barcode.FORMAT_CODE_128,
+                Barcode.FORMAT_CODE_39,
+                Barcode.FORMAT_CODE_93,
+                Barcode.FORMAT_CODABAR,
+                Barcode.FORMAT_EAN_13,
+                Barcode.FORMAT_EAN_8,
+                Barcode.FORMAT_ITF,
+                Barcode.FORMAT_UPC_A,
+                Barcode.FORMAT_UPC_E,
+                Barcode.FORMAT_PDF417,
+                Barcode.FORMAT_AZTEC,
+                Barcode.FORMAT_DATA_MATRIX
+            )
+            .build()
+        BarcodeScanning.getClient(options)
+    }
 
-    var scannedPrice by remember { mutableStateOf<String?>(null) }
+    var scannedResult by remember { mutableStateOf<String?>(null) }
+    var resultType by remember { mutableStateOf<ScannerResultType?>(null) }
     var isPaused by remember { mutableStateOf(false) }
 
-    // Stability detection
-    var lastDetected by remember { mutableStateOf("") }
-    var stableCount by remember { mutableStateOf(0) }
-    var currentLivePrice by remember { mutableStateOf("") }
+    // Stability detection for OCR
+    var lastDetectedOcr by remember { mutableStateOf("") }
+    var stableCountOcr by remember { mutableStateOf(0) }
+    var currentLiveOcr by remember { mutableStateOf("") }
 
     Box(modifier = Modifier.fillMaxSize()) {
         AndroidView(
@@ -73,36 +100,59 @@ fun CameraScannerView(
                         val mediaImage = imageProxy.image
                         if (mediaImage != null) {
                             val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                            textRecognizer.process(image)
-                                .addOnSuccessListener { visionText ->
-                                    val priceElements = visionText.textBlocks.flatMap { block ->
-                                        block.lines.flatMap { line ->
-                                            line.elements.map { element ->
-                                                OCRPriceElement(
-                                                    text = element.text,
-                                                    boundingBox = element.boundingBox
-                                                )
-                                            }
+                            
+                            // 1. Try Barcode first
+                            barcodeScanner.process(image)
+                                .addOnSuccessListener { barcodes ->
+                                    if (barcodes.isNotEmpty()) {
+                                        val barcodeValue = barcodes[0].rawValue ?: barcodes[0].displayValue
+                                        if (barcodeValue != null) {
+                                            scannedResult = barcodeValue
+                                            resultType = ScannerResultType.BARCODE
+                                            isPaused = true
+                                            imageProxy.close()
+                                            return@addOnSuccessListener
                                         }
                                     }
+                                    
+                                    // 2. If no barcode, try OCR (unless barcode only)
+                                    if (!isBarcodeOnly) {
+                                        textRecognizer.process(image)
+                                            .addOnSuccessListener { visionText ->
+                                                val priceElements = visionText.textBlocks.flatMap { block ->
+                                                    block.lines.flatMap { line ->
+                                                        line.elements.map { element ->
+                                                            OCRPriceElement(
+                                                                text = element.text,
+                                                                boundingBox = element.boundingBox
+                                                            )
+                                                        }
+                                                    }
+                                                }
 
-                                    val detected = PriceDetector.detectPrice(priceElements)
-                                    if (detected != null) {
-                                        currentLivePrice = detected
-                                        if (detected == lastDetected) {
-                                            stableCount++
-                                        } else {
-                                            stableCount = 1
-                                            lastDetected = detected
-                                        }
+                                                val detected = PriceDetector.detectPrice(priceElements)
+                                                if (detected != null) {
+                                                    currentLiveOcr = detected
+                                                    if (detected == lastDetectedOcr) {
+                                                        stableCountOcr++
+                                                    } else {
+                                                        stableCountOcr = 1
+                                                        lastDetectedOcr = detected
+                                                    }
 
-                                        if (stableCount >= 3) {
-                                            scannedPrice = detected
-                                            isPaused = true
-                                        }
+                                                    if (stableCountOcr >= 3) {
+                                                        scannedResult = detected
+                                                        resultType = ScannerResultType.PRICE
+                                                        isPaused = true
+                                                    }
+                                                }
+                                            }
+                                            .addOnCompleteListener { imageProxy.close() }
+                                    } else {
+                                        imageProxy.close()
                                     }
                                 }
-                                .addOnCompleteListener {
+                                .addOnFailureListener {
                                     imageProxy.close()
                                 }
                         } else {
@@ -120,7 +170,7 @@ fun CameraScannerView(
                             imageAnalysis
                         )
                     } catch (e: Exception) {
-                        e.printStackTrace()
+                        Log.e("CameraScannerView", "Use case binding failed", e)
                     }
                 }, ContextCompat.getMainExecutor(ctx))
                 previewView
@@ -133,14 +183,14 @@ fun CameraScannerView(
             Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
         }
 
-        // Overlay UI
+        // Overlay UI (Bottom)
         Column(
             modifier = Modifier
                 .align(Alignment.BottomCenter)
                 .padding(bottom = 64.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            if (isPaused && scannedPrice != null) {
+            if (isPaused && scannedResult != null) {
                 Card(
                     colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                     elevation = CardDefaults.cardElevation(8.dp),
@@ -151,24 +201,26 @@ fun CameraScannerView(
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
                         Text(
-                            "Price Detected",
+                            if (resultType == ScannerResultType.PRICE) "Price Detected" else "Barcode Scanned",
                             style = MaterialTheme.typography.labelLarge,
                             color = MaterialTheme.colorScheme.secondary
                         )
                         Text(
-                            "₹$scannedPrice",
-                            style = MaterialTheme.typography.displayMedium,
+                            text = if (resultType == ScannerResultType.PRICE) "₹$scannedResult" else scannedResult!!,
+                            style = if (resultType == ScannerResultType.PRICE) MaterialTheme.typography.displayMedium else MaterialTheme.typography.headlineMedium,
                             fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary
+                            color = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.padding(vertical = 8.dp)
                         )
-                        Spacer(modifier = Modifier.height(24.dp))
+                        Spacer(modifier = Modifier.height(16.dp))
                         Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
                             FilledIconButton(
                                 onClick = {
                                     isPaused = false
-                                    scannedPrice = null
-                                    stableCount = 0
-                                    lastDetected = ""
+                                    scannedResult = null
+                                    resultType = null
+                                    stableCountOcr = 0
+                                    lastDetectedOcr = ""
                                 },
                                 modifier = Modifier.size(56.dp),
                                 colors = IconButtonDefaults.filledIconButtonColors(
@@ -179,7 +231,13 @@ fun CameraScannerView(
                                 Icon(Icons.Default.Close, contentDescription = "Retry", modifier = Modifier.size(32.dp))
                             }
                             FilledIconButton(
-                                onClick = { onPriceConfirmed(scannedPrice!!) },
+                                onClick = {
+                                    if (resultType == ScannerResultType.PRICE) {
+                                        onPriceConfirmed(scannedResult!!)
+                                    } else {
+                                        onBarcodeConfirmed(scannedResult!!)
+                                    }
+                                },
                                 modifier = Modifier.size(56.dp),
                                 colors = IconButtonDefaults.filledIconButtonColors(
                                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -194,12 +252,13 @@ fun CameraScannerView(
             } else {
                 Surface(
                     onClick = {
-                        if (currentLivePrice.isNotEmpty()) {
-                            scannedPrice = currentLivePrice
+                        if (currentLiveOcr.isNotEmpty()) {
+                            scannedResult = currentLiveOcr
+                            resultType = ScannerResultType.PRICE
                             isPaused = true
                         }
                     },
-                    enabled = currentLivePrice.isNotEmpty(),
+                    enabled = currentLiveOcr.isNotEmpty(),
                     color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
                     shape = MaterialTheme.shapes.extraLarge,
                     tonalElevation = 4.dp
@@ -208,9 +267,9 @@ fun CameraScannerView(
                         modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
                         horizontalAlignment = Alignment.CenterHorizontally
                     ) {
-                        if (currentLivePrice.isNotEmpty()) {
+                        if (currentLiveOcr.isNotEmpty()) {
                             Text(
-                                text = "Detecting: ₹$currentLivePrice",
+                                text = "Detecting Price: ₹$currentLiveOcr",
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.primary,
                                 fontWeight = FontWeight.SemiBold
@@ -222,7 +281,7 @@ fun CameraScannerView(
                             )
                         } else {
                             Text(
-                                text = "Point camera at a price tag",
+                                text = if (isBarcodeOnly) "Scanning for Barcodes..." else "Scanning for Barcodes or Prices...",
                                 style = MaterialTheme.typography.bodyLarge
                             )
                         }
@@ -243,4 +302,8 @@ fun CameraScannerView(
             }
         }
     }
+}
+
+enum class ScannerResultType {
+    PRICE, BARCODE
 }

@@ -8,8 +8,9 @@ data class ProductEntity(
     @PrimaryKey val id: String,
     val name: String,
     val price: Double,
-    val stock: Int
+    val stock: Int,
+    val barcode: String? = null
 )
 
-fun ProductEntity.toProduct() = Product(id, name, price, stock)
-fun Product.toEntity() = ProductEntity(id, name, price, stock)
+fun ProductEntity.toProduct() = Product(id, name, price, stock, barcode)
+fun Product.toEntity() = ProductEntity(id, name, price, stock, barcode)

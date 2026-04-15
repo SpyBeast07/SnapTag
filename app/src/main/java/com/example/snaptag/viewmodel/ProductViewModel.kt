@@ -24,13 +24,14 @@ class ProductViewModel(private val repository: ProductRepository) : ViewModel() 
         _searchQuery.value = query
     }
 
-    fun addProduct(name: String, price: Double, stock: Int) {
+    fun addProduct(name: String, price: Double, stock: Int, barcode: String? = null) {
         viewModelScope.launch {
             val newProduct = Product(
                 id = UUID.randomUUID().toString(),
                 name = name,
                 price = price,
-                stock = stock
+                stock = stock,
+                barcode = barcode
             )
             repository.insert(newProduct)
         }

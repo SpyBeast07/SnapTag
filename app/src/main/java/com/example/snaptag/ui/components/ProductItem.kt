@@ -42,6 +42,13 @@ fun ProductItem(
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
+                if (!product.barcode.isNullOrBlank()) {
+                    Text(
+                        text = "Barcode: ${product.barcode}",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                    )
+                }
                 Text(
                     text = "Stock: ${product.stock}",
                     style = MaterialTheme.typography.bodyMedium,

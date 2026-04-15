@@ -43,6 +43,15 @@ fun SettingsScreen(
 
     var showClearDialog by remember { mutableStateOf(false) }
 
+    val createDocumentLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.CreateDocument("application/json"),
+        onResult = { uri ->
+            uri?.let {
+                exportDataToUri(context, it, products, scope)
+            }
+        }
+    )
+
     val importLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
@@ -100,9 +109,10 @@ fun SettingsScreen(
                 SettingsItem(
                     icon = Icons.Default.Backup,
                     title = "Backup Data",
-                    subtitle = "Export products to Downloads as JSON",
+                    subtitle = "Export products to a JSON file",
                     onClick = {
-                        exportData(context, products)
+                        val fileName = "SnapTag_Backup_${System.currentTimeMillis()}.json"
+                        createDocumentLauncher.launch(fileName)
                     }
                 )
                 SettingsItem(
@@ -134,22 +144,24 @@ fun SettingsScreen(
     }
 }
 
-private fun exportData(context: Context, products: List<Product>) {
-    try {
-        val gson = Gson()
-        val jsonString = gson.toJson(products)
-        val fileName = "SnapTag_Backup_${System.currentTimeMillis()}.json"
+private fun exportDataToUri(context: Context, uri: Uri, products: List<Product>, scope: CoroutineScope) {
+    scope.launch(Dispatchers.IO) {
+        try {
+            val gson = Gson()
+            val jsonString = gson.toJson(products)
 
-        val downloadsDir = Environment.getExternalStoragePublicDirectory(Environment.DIRECTORY_DOWNLOADS)
-        val file = File(downloadsDir, fileName)
+            context.contentResolver.openOutputStream(uri)?.use {
+                it.write(jsonString.toByteArray())
+            }
 
-        FileOutputStream(file).use {
-            it.write(jsonString.toByteArray())
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Backup saved successfully", Toast.LENGTH_LONG).show()
+            }
+        } catch (e: Exception) {
+            withContext(Dispatchers.Main) {
+                Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+            }
         }
-
-        Toast.makeText(context, "Backup saved to Downloads", Toast.LENGTH_LONG).show()
-    } catch (e: Exception) {
-        Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
     }
 }
 
