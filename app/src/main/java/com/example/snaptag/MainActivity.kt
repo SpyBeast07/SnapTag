@@ -4,11 +4,16 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -27,6 +32,7 @@ import kotlinx.coroutines.delay
 
 class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         enableEdgeToEdge()
         val repository = (application as SnapTagApp).repository
@@ -93,7 +99,7 @@ fun MainScaffold(
 @Composable
 fun LoadingScreen(onLoaded: () -> Unit) {
     LaunchedEffect(Unit) {
-        delay(1500)
+        delay(1000)
         onLoaded()
     }
 
@@ -108,11 +114,13 @@ fun LoadingScreen(onLoaded: () -> Unit) {
             verticalArrangement = Arrangement.Center,
             modifier = Modifier.fillMaxWidth()
         ) {
-            Icon(
-                painter = painterResource(id = R.drawable.ic_launcher_background),
+            Image(
+                painter = painterResource(id = R.drawable.logo),
                 contentDescription = "App Logo",
-                modifier = Modifier.size(100.dp),
-                tint = MaterialTheme.colorScheme.primary
+                modifier = Modifier
+                    .size(120.dp)
+                    .clip(CircleShape),
+                contentScale = ContentScale.Crop
             )
             
             Spacer(modifier = Modifier.height(24.dp))
