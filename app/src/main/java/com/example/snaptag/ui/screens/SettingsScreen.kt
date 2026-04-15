@@ -50,10 +50,18 @@ fun SettingsScreen(
     )
     val products by viewModel.products.collectAsState()
     val paymentQrUri by viewModel.paymentQrUri.collectAsState()
+    val shopName by viewModel.shopName.collectAsState()
+    val shopAddress by viewModel.shopAddress.collectAsState()
+    val shopPhone by viewModel.shopPhone.collectAsState()
+    val shopEmail by viewModel.shopEmail.collectAsState()
+    val shopGst by viewModel.shopGst.collectAsState()
+    val footerNote by viewModel.footerNote.collectAsState()
+
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showClearDialog by remember { mutableStateOf(false) }
+    var showReceiptDialog by remember { mutableStateOf(false) }
 
     val qrPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -110,6 +118,44 @@ fun SettingsScreen(
         )
     }
 
+    if (showReceiptDialog) {
+        var tempName by remember { mutableStateOf(shopName) }
+        var tempAddress by remember { mutableStateOf(shopAddress) }
+        var tempPhone by remember { mutableStateOf(shopPhone) }
+        var tempEmail by remember { mutableStateOf(shopEmail) }
+        var tempGst by remember { mutableStateOf(shopGst) }
+        var tempFooter by remember { mutableStateOf(footerNote) }
+
+        AlertDialog(
+            onDismissRequest = { showReceiptDialog = false },
+            title = { Text("Receipt Details") },
+            text = {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    OutlinedTextField(value = tempName, onValueChange = { tempName = it }, label = { Text("Shop Name") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempAddress, onValueChange = { tempAddress = it }, label = { Text("Address") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempPhone, onValueChange = { tempPhone = it }, label = { Text("Phone Number") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempEmail, onValueChange = { tempEmail = it }, label = { Text("Email (Optional)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempGst, onValueChange = { tempGst = it }, label = { Text("GST Number (Optional)") }, modifier = Modifier.fillMaxWidth())
+                    OutlinedTextField(value = tempFooter, onValueChange = { tempFooter = it }, label = { Text("Footer Note") }, modifier = Modifier.fillMaxWidth())
+                }
+            },
+            confirmButton = {
+                Button(onClick = {
+                    viewModel.updateReceiptDetails(tempName, tempAddress, tempPhone, tempEmail, tempGst, tempFooter)
+                    showReceiptDialog = false
+                    Toast.makeText(context, "Receipt details updated", Toast.LENGTH_SHORT).show()
+                }) {
+                    Text("Save")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showReceiptDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = { TopBar("SnapTag - Settings") }
     ) { padding ->
@@ -129,7 +175,13 @@ fun SettingsScreen(
             }
 
             item {
-                SettingsHeader("Payment Settings")
+                SettingsHeader("Receipt Settings")
+                SettingsItem(
+                    icon = Icons.Default.Receipt,
+                    title = "Receipt Details",
+                    subtitle = "Shop name, address, phone, GST, etc.",
+                    onClick = { showReceiptDialog = true }
+                )
                 Column(
                     modifier = Modifier
                         .fillMaxWidth()

@@ -94,7 +94,6 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
                     repository.update(updatedProduct)
                 }
             }
-            _cartItems.value = emptyList()
             onSuccess()
         }
     }

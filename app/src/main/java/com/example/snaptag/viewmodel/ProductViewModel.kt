@@ -23,6 +23,48 @@ class ProductViewModel(private val repository: ProductRepository, application: A
     private val _paymentQrUri = MutableStateFlow(sharedPrefs.getString("payment_qr_uri", null))
     val paymentQrUri: StateFlow<String?> = _paymentQrUri.asStateFlow()
 
+    private val _shopName = MutableStateFlow(sharedPrefs.getString("shop_name", "My Shop") ?: "My Shop")
+    val shopName: StateFlow<String> = _shopName.asStateFlow()
+
+    private val _shopAddress = MutableStateFlow(sharedPrefs.getString("shop_address", "") ?: "")
+    val shopAddress: StateFlow<String> = _shopAddress.asStateFlow()
+
+    private val _shopPhone = MutableStateFlow(sharedPrefs.getString("shop_phone", "") ?: "")
+    val shopPhone: StateFlow<String> = _shopPhone.asStateFlow()
+
+    private val _shopEmail = MutableStateFlow(sharedPrefs.getString("shop_email", "") ?: "")
+    val shopEmail: StateFlow<String> = _shopEmail.asStateFlow()
+
+    private val _shopGst = MutableStateFlow(sharedPrefs.getString("shop_gst", "") ?: "")
+    val shopGst: StateFlow<String> = _shopGst.asStateFlow()
+
+    private val _footerNote = MutableStateFlow(sharedPrefs.getString("footer_note", "Thank you for shopping with us!") ?: "Thank you for shopping with us!")
+    val footerNote: StateFlow<String> = _footerNote.asStateFlow()
+
+    fun updateReceiptDetails(
+        name: String,
+        address: String,
+        phone: String,
+        email: String,
+        gst: String,
+        footer: String
+    ) {
+        sharedPrefs.edit().apply {
+            putString("shop_name", name)
+            putString("shop_address", address)
+            putString("shop_phone", phone)
+            putString("shop_email", email)
+            putString("shop_gst", gst)
+            putString("footer_note", footer)
+        }.apply()
+        _shopName.value = name
+        _shopAddress.value = address
+        _shopPhone.value = phone
+        _shopEmail.value = email
+        _shopGst.value = gst
+        _footerNote.value = footer
+    }
+
     fun savePaymentQrUri(uri: String?) {
         sharedPrefs.edit().putString("payment_qr_uri", uri).apply()
         _paymentQrUri.value = uri
