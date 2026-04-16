@@ -10,11 +10,14 @@ import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.navigation.NavController
 import androidx.navigation.compose.currentBackStackEntryAsState
 
 @Composable
 fun BottomNavBar(navController: NavController) {
+    val view = LocalView.current
     val items = listOf(
         NavigationItem("stocks", "Products", Icons.Default.Inventory),
         NavigationItem("billing", "Billing", Icons.Default.Receipt),
@@ -34,6 +37,7 @@ fun BottomNavBar(navController: NavController) {
                 selected = currentRoute == item.route,
                 onClick = {
                     if (currentRoute != item.route) {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         navController.navigate(item.route) {
                             popUpTo(navController.graph.startDestinationId) {
                                 saveState = true

@@ -35,6 +35,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import com.example.snaptag.ui.components.CameraScannerView
 import com.example.snaptag.ui.components.TopBar
 import com.example.snaptag.ui.components.SearchBar
@@ -60,6 +62,8 @@ fun BillingScreen(
     val shopEmail by productViewModel.shopEmail.collectAsState()
     val shopGst by productViewModel.shopGst.collectAsState()
     val footerNote by productViewModel.footerNote.collectAsState()
+
+    val view = LocalView.current
 
     var showScanner by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -102,6 +106,7 @@ fun BillingScreen(
                     query = searchQuery,
                     onQueryChange = { viewModel.updateSearchQuery(it) },
                     onScanClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                         val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                         if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
                             showScanner = true
@@ -142,6 +147,7 @@ fun BillingScreen(
                                             trailingContent = {
                                                 IconButton(onClick = {
                                                     if ((cartItem?.quantity ?: 0) < product.stock) {
+                                                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                                         viewModel.addToCart(product)
                                                         viewModel.updateSearchQuery("")
                                                     } else {
@@ -153,6 +159,7 @@ fun BillingScreen(
                                             },
                                             modifier = Modifier.clickable {
                                                 if ((cartItem?.quantity ?: 0) < product.stock) {
+                                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                                     viewModel.addToCart(product)
                                                     viewModel.updateSearchQuery("")
                                                 } else {
@@ -222,7 +229,10 @@ fun BillingScreen(
             }
 
             Button(
-                onClick = { showBottomSheet = true },
+                onClick = { 
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    showBottomSheet = true 
+                },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
             ) {
@@ -236,7 +246,10 @@ fun BillingScreen(
                 horizontalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 OutlinedButton(
-                    onClick = { viewModel.clearCart() },
+                    onClick = { 
+                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        viewModel.clearCart() 
+                    },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
                     enabled = cartItems.isNotEmpty()
@@ -247,7 +260,12 @@ fun BillingScreen(
                 }
 
                 Button(
-                    onClick = { if (cartItems.isNotEmpty()) showPaymentDialog = true },
+                    onClick = { 
+                        if (cartItems.isNotEmpty()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            showPaymentDialog = true 
+                        }
+                    },
                     modifier = Modifier.weight(1f),
                     enabled = cartItems.isNotEmpty()
                 ) {
@@ -389,10 +407,16 @@ fun BillingScreen(
                 Button(
                     onClick = {
                         if (cartItems.isNotEmpty()) {
+                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                             val itemsForBill = cartItems.toList()
                             val amountForBill = totalAmount
                             val phoneForBill = customerPhone.ifBlank { null }
                             viewModel.generateBill(phoneForBill) { sale ->
+                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
+                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
+                                } else {
+                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                }
                                 // Save snapshot of data for later PDF generation
                                 lastPaidItems = itemsForBill
                                 lastPaidAmount = amountForBill
@@ -433,6 +457,7 @@ fun BillingScreen(
             },
             confirmButton = {
                 Button(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                     val finalFile = PdfGenerator.generateBillPdf(
                         context = context,
                         shopName = shopName,
@@ -487,6 +512,7 @@ fun BillingScreen(
             },
             dismissButton = {
                 TextButton(onClick = { 
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
                     PdfGenerator.generateBillPdf(
                         context = context,
                         shopName = shopName,
@@ -516,6 +542,7 @@ fun ProductExploreItem(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit
 ) {
+    val view = LocalView.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -534,13 +561,21 @@ fun ProductExploreItem(
             
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (cartQuantity > 0) {
-                    IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
+                    IconButton(onClick = {
+                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        onDecrement()
+                    }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Remove, contentDescription = null)
                     }
                     Text("$cartQuantity", modifier = Modifier.padding(horizontal = 8.dp), fontWeight = FontWeight.Bold)
                 }
                 IconButton(
-                    onClick = onIncrement,
+                    onClick = {
+                        if (cartQuantity < product.stock) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        }
+                        onIncrement()
+                    },
                     modifier = Modifier.size(32.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = if (cartQuantity >= product.stock) Color.Gray else MaterialTheme.colorScheme.primary
@@ -560,6 +595,7 @@ fun CartItemRow(
     onDecrement: () -> Unit,
     isAtMaxStock: Boolean
 ) {
+    val view = LocalView.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(1.dp)
@@ -578,12 +614,20 @@ fun CartItemRow(
                 Text("₹${String.format(Locale.getDefault(), "%.2f", item.price * item.quantity)}", 
                     fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
                 
-                IconButton(onClick = onDecrement, modifier = Modifier.size(32.dp)) {
+                IconButton(onClick = {
+                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    onDecrement()
+                }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
                 }
                 Text("${item.quantity}", modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.Bold)
                 IconButton(
-                    onClick = onIncrement,
+                    onClick = {
+                        if (!isAtMaxStock) {
+                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        }
+                        onIncrement()
+                    },
                     modifier = Modifier.size(32.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = if (isAtMaxStock) Color.Gray else MaterialTheme.colorScheme.primary

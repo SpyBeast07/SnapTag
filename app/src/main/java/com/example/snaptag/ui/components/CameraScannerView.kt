@@ -23,6 +23,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalView
+import android.view.HapticFeedbackConstants
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -48,6 +50,7 @@ fun CameraScannerView(
     isBarcodeOnly: Boolean = false
 ) {
     val context = LocalContext.current
+    val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     
@@ -184,6 +187,7 @@ fun CameraScannerView(
                                                 val barcodeValue = barcodes[0].rawValue ?: barcodes[0].displayValue
                                                 if (barcodeValue != null) {
                                                     Log.d("CameraScanner", "Barcode detected: $barcodeValue")
+                                                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
                                                     onBarcodeConfirmed(barcodeValue)
                                                     isPaused = true
                                                 }
@@ -310,6 +314,7 @@ fun CameraScannerView(
                                     price = scoredPrice,
                                     isRecommended = isRecommended,
                                     onClick = {
+                                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
                                         isPaused = true
                                         PriceDetector.clearStability()
                                         onPriceConfirmed(scoredPrice.price)
