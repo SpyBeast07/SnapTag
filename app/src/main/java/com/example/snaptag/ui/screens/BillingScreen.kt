@@ -44,7 +44,10 @@ import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewModel) {
+fun BillingScreen(
+    viewModel: BillingViewModel,
+    productViewModel: ProductViewModel
+) {
     val cartItems by viewModel.cartItems.collectAsState()
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
@@ -62,8 +65,11 @@ fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewMode
     var showBottomSheet by remember { mutableStateOf(false) }
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
-    var generatedPdfFile by remember { mutableStateOf<File?>(null) }
     var customerPhone by remember { mutableStateOf("") }
+    
+    // Maintain a snapshot of the last paid cart to avoid using empty cart after viewModel.clearCart()
+    var lastPaidItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
+    var lastPaidAmount by remember { mutableStateOf(0.0) }
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -362,28 +368,36 @@ fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewMode
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
                     )
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    OutlinedTextField(
+                        value = customerPhone,
+                        onValueChange = { customerPhone = it },
+                        label = { Text("Customer Phone (Optional)") },
+                        modifier = Modifier.fillMaxWidth(),
+                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
+                        ),
+                        singleLine = true
+                    )
                 }
             },
             confirmButton = {
                 Button(
                     onClick = {
-                        viewModel.generateBill {
-                            val pdfFile = PdfGenerator.generateBillPdf(
-                                context = context,
-                                shopName = shopName,
-                                address = shopAddress,
-                                phone = shopPhone,
-                                email = shopEmail,
-                                gst = shopGst,
-                                footerNote = footerNote,
-                                cartItems = cartItems,
-                                totalAmount = totalAmount,
-                                customerPhone = null // Will be updated if user enters it in share dialog
-                            )
-                            generatedPdfFile = pdfFile
-                            Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
-                            showPaymentDialog = false
-                            showShareDialog = true
+                        if (cartItems.isNotEmpty()) {
+                            val itemsForBill = cartItems.toList()
+                            val amountForBill = totalAmount
+                            val phoneForBill = customerPhone.ifBlank { null }
+                            viewModel.generateBill(phoneForBill) { sale ->
+                                // Save snapshot of data for later PDF generation
+                                lastPaidItems = itemsForBill
+                                lastPaidAmount = amountForBill
+                                Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
+                                showPaymentDialog = false
+                                showShareDialog = true
+                            }
                         }
                     },
                     modifier = Modifier.fillMaxWidth()
@@ -404,41 +418,31 @@ fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewMode
 
     if (showShareDialog) {
         AlertDialog(
-            onDismissRequest = { showShareDialog = false },
+            onDismissRequest = { 
+                showShareDialog = false
+                customerPhone = ""
+            },
             title = { Text("Share Bill") },
             text = {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Enter WhatsApp Number")
-                    OutlinedTextField(
-                        value = customerPhone,
-                        onValueChange = { customerPhone = it },
-                        label = { Text("Phone Number") },
-                        modifier = Modifier.fillMaxWidth(),
-                        keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
-                            keyboardType = androidx.compose.ui.text.input.KeyboardType.Phone
-                        )
-                    )
+                    Text("Customer: ${customerPhone.ifBlank { "No number entered" }}")
+                    Text("Bill is ready to be shared or saved.")
                 }
             },
             confirmButton = {
                 Button(onClick = {
-                    val finalFile = if (customerPhone.isNotBlank()) {
-                        // Regenerate with phone if provided
-                        PdfGenerator.generateBillPdf(
-                            context = context,
-                            shopName = shopName,
-                            address = shopAddress,
-                            phone = shopPhone,
-                            email = shopEmail,
-                            gst = shopGst,
-                            footerNote = footerNote,
-                            cartItems = cartItems,
-                            totalAmount = totalAmount,
-                            customerPhone = customerPhone
-                        )
-                    } else {
-                        generatedPdfFile
-                    }
+                    val finalFile = PdfGenerator.generateBillPdf(
+                        context = context,
+                        shopName = shopName,
+                        address = shopAddress,
+                        phone = shopPhone,
+                        email = shopEmail,
+                        gst = shopGst,
+                        footerNote = footerNote,
+                        cartItems = lastPaidItems,
+                        totalAmount = lastPaidAmount,
+                        customerPhone = customerPhone.ifBlank { null }
+                    )
 
                     finalFile?.let { file ->
                         val uri = FileProvider.getUriForFile(
@@ -447,40 +451,33 @@ fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewMode
                             file
                         )
 
-                        // Clean phone number: remove non-digits
-                        var cleanPhone = customerPhone.filter { it.isDigit() }
-                        
-                        // Fix for 10 digit number: add 91
-                        if (cleanPhone.length == 10) {
-                            cleanPhone = "91$cleanPhone"
-                        } else if (cleanPhone.startsWith("0") && cleanPhone.length == 11) {
-                            // Handle leading 0 (common in some regions)
-                            cleanPhone = "91" + cleanPhone.substring(1)
+                        val digits = customerPhone.filter { it.isDigit() }
+                        val cleanPhone = when {
+                            digits.length == 10 -> "91$digits"
+                            digits.length == 11 && digits.startsWith("0") -> "91${digits.substring(1)}"
+                            digits.length >= 12 -> digits
+                            else -> digits
                         }
 
                         val intent = Intent(Intent.ACTION_SEND).apply {
                             type = "application/pdf"
                             putExtra(Intent.EXTRA_STREAM, uri)
                             if (cleanPhone.isNotEmpty()) {
-                                // WhatsApp expects JID as number@s.whatsapp.net
                                 putExtra("jid", "${cleanPhone}@s.whatsapp.net")
                             }
                             addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                         }
                         
-                        // Try direct WhatsApp first
                         intent.`package` = "com.whatsapp"
                         
                         try {
-                            // On some WhatsApp versions, putting JID in ACTION_SEND works well.
-                            // To be double sure we target the number, we ensure cleanPhone is correct.
                             context.startActivity(intent)
                         } catch (e: Exception) {
                             intent.`package` = null
                             context.startActivity(Intent.createChooser(intent, "Share Bill"))
                         }
                     }
-                    viewModel.clearCart()
+                    customerPhone = ""
                     showShareDialog = false
                 }) {
                     Text("Send via WhatsApp")
@@ -488,10 +485,22 @@ fun BillingScreen(viewModel: BillingViewModel, productViewModel: ProductViewMode
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    viewModel.clearCart()
+                    PdfGenerator.generateBillPdf(
+                        context = context,
+                        shopName = shopName,
+                        address = shopAddress,
+                        phone = shopPhone,
+                        email = shopEmail,
+                        gst = shopGst,
+                        footerNote = footerNote,
+                        cartItems = lastPaidItems,
+                        totalAmount = lastPaidAmount,
+                        customerPhone = customerPhone.ifBlank { null }
+                    )
+                    customerPhone = ""
                     showShareDialog = false 
                 }) {
-                    Text("Skip")
+                    Text("Save & Close")
                 }
             }
         )

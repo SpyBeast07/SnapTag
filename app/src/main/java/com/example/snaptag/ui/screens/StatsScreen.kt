@@ -10,10 +10,11 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.example.snaptag.data.Product
+import com.example.snaptag.data.SaleEntity
 import com.example.snaptag.viewmodel.StatsViewModel
-import java.util.Locale
+import java.text.SimpleDateFormat
+import java.util.*
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -27,7 +28,7 @@ fun StatsScreen(viewModel: StatsViewModel) {
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("SnapTag - Stats", fontWeight = FontWeight.Bold) }
+                title = { Text("Stock Statistics", fontWeight = FontWeight.Bold) }
             )
         }
     ) { paddingValues ->
@@ -39,12 +40,20 @@ fun StatsScreen(viewModel: StatsViewModel) {
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             item {
+                StatCard(
+                    title = "Inventory Value",
+                    value = "₹${String.format(Locale.getDefault(), "%.2f", totalValue)}",
+                    modifier = Modifier.fillMaxWidth()
+                )
+            }
+
+            item {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(8.dp)
                 ) {
                     StatCard(
-                        title = "Total Products",
+                        title = "Unique Products",
                         value = totalProducts.toString(),
                         modifier = Modifier.weight(1f)
                     )
@@ -56,32 +65,44 @@ fun StatsScreen(viewModel: StatsViewModel) {
                 }
             }
 
-            item {
-                StatCard(
-                    title = "Total Inventory Value",
-                    value = "₹${String.format(Locale.getDefault(), "%.2f", totalValue)}",
-                    modifier = Modifier.fillMaxWidth()
-                )
+            if (lowStockProducts.isNotEmpty()) {
+                item { SectionHeader(title = "Low Stock Alerts") }
+                items(lowStockProducts) { product ->
+                    ProductStatItem(product = product, isLowStock = true)
+                }
             }
 
-            item { SectionHeader(title = "Top 5 Products") }
-
-            if (topProducts.isEmpty()) {
-                item { Text("No data available", color = Color.Gray) }
-            } else {
+            if (topProducts.isNotEmpty()) {
+                item { SectionHeader(title = "Top 5 Products") }
                 items(topProducts) { product ->
                     ProductStatItem(product = product)
                 }
             }
+        }
+    }
+}
 
-            item { SectionHeader(title = "Low Stock Alerts") }
-
-            if (lowStockProducts.isEmpty()) {
-                item { Text("All items well stocked!", color = Color.Gray) }
-            } else {
-                items(lowStockProducts) { product ->
-                    ProductStatItem(product = product, isLowStock = true)
-                }
+@Composable
+fun SaleListItem(sale: SaleEntity) {
+    val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(text = "Order #${sale.id}", fontWeight = FontWeight.Bold)
+                Text(text = sdf.format(Date(sale.timestamp)), style = MaterialTheme.typography.bodySmall)
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(text = "₹${String.format(Locale.getDefault(), "%.2f", sale.totalAmount)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                Text(text = "${sale.totalItems} Items", style = MaterialTheme.typography.bodySmall)
             }
         }
     }

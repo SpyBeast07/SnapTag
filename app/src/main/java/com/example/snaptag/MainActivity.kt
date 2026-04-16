@@ -27,6 +27,7 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import com.example.snaptag.ui.components.BottomNavBar
 import com.example.snaptag.ui.screens.AboutScreen
 import com.example.snaptag.ui.screens.BillingScreen
+import com.example.snaptag.ui.screens.SalesScreen
 import com.example.snaptag.ui.screens.SettingsScreen
 import com.example.snaptag.ui.screens.StatsScreen
 import com.example.snaptag.ui.screens.StocksScreen
@@ -83,13 +84,30 @@ fun AppNavigation(navController: NavHostController, viewModelFactory: ProductVie
                     viewModelStoreOwner = activity,
                     factory = viewModelFactory
                 )
-                BillingScreen(viewModel = billingViewModel, productViewModel = productViewModel)
+                BillingScreen(
+                    viewModel = billingViewModel,
+                    productViewModel = productViewModel
+                )
             }
         }
         composable("stats") {
+            val activity = LocalContext.current as ComponentActivity
             MainScaffold(navController) {
-                val statsViewModel: StatsViewModel = viewModel(factory = viewModelFactory)
+                val statsViewModel: StatsViewModel = viewModel(
+                    viewModelStoreOwner = activity,
+                    factory = viewModelFactory
+                )
                 StatsScreen(viewModel = statsViewModel)
+            }
+        }
+        composable("sales") {
+            val activity = LocalContext.current as ComponentActivity
+            MainScaffold(navController) {
+                val statsViewModel: StatsViewModel = viewModel(
+                    viewModelStoreOwner = activity,
+                    factory = viewModelFactory
+                )
+                SalesScreen(viewModel = statsViewModel)
             }
         }
         composable("settings") {

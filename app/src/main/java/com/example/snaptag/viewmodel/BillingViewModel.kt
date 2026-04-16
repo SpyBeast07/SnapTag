@@ -5,6 +5,8 @@ import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.example.snaptag.data.Product
 import com.example.snaptag.data.ProductRepository
+import com.example.snaptag.data.SaleEntity
+import com.example.snaptag.data.SaleItemEntity
 import kotlinx.coroutines.flow.*
 import kotlinx.coroutines.launch
 
@@ -84,17 +86,40 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
         _cartItems.value = emptyList()
     }
 
-    fun generateBill(onSuccess: () -> Unit) {
+    fun generateBill(customerPhone: String? = null, onSuccess: (SaleEntity) -> Unit) {
         viewModelScope.launch {
             val items = _cartItems.value
-            for (item in items) {
-                val product = repository.getProductById(item.productId)
-                if (product != null) {
-                    val updatedProduct = product.copy(stock = (product.stock - item.quantity).coerceAtLeast(0))
-                    repository.update(updatedProduct)
-                }
+            if (items.isEmpty()) return@launch
+
+            // 1. Snapshot cart data to avoid race conditions
+            val billItems = items.toList()
+            val totalItemsCount = billItems.sumOf { it.quantity }
+            val totalBillAmount = billItems.sumOf { it.price * it.quantity }
+            
+            // 2. Clear cart immediately to prevent double clicks/submissions
+            _cartItems.value = emptyList()
+
+            // 3. Update stock and record sale in a single transaction-like flow via repository
+            // Create the sale record
+            val sale = SaleEntity(
+                timestamp = System.currentTimeMillis(),
+                totalItems = totalItemsCount,
+                totalAmount = totalBillAmount,
+                customerPhone = if (customerPhone.isNullOrBlank()) null else customerPhone
+            )
+            val saleItems = billItems.map {
+                SaleItemEntity(
+                    saleId = 0, // Will be set by DAO
+                    productName = it.name,
+                    quantity = it.quantity,
+                    price = it.price
+                )
             }
-            onSuccess()
+
+            // Perform DB updates
+            repository.processSale(sale, saleItems, billItems)
+
+            onSuccess(sale)
         }
     }
 }

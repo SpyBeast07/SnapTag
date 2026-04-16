@@ -1,6 +1,7 @@
 package com.example.snaptag.ui.components
 
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.History
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Assessment
 import androidx.compose.material.icons.filled.Inventory
@@ -18,6 +19,7 @@ fun BottomNavBar(navController: NavController) {
         NavigationItem("stocks", "Products", Icons.Default.Inventory),
         NavigationItem("billing", "Billing", Icons.Default.Receipt),
         NavigationItem("stats", "Stats", Icons.Default.Assessment),
+        NavigationItem("sales", "Sales", Icons.Default.History),
         NavigationItem("settings", "Settings", Icons.Default.Settings)
     )
 
