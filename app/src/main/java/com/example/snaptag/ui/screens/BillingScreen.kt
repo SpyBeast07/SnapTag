@@ -311,21 +311,23 @@ fun BillingScreen(
     }
 
     if (showScanner) {
-        CameraScannerView(
-            isBarcodeOnly = true,
-            onBarcodeConfirmed = { barcode ->
-                val product = products.find { it.barcode == barcode }
-                if (product != null) {
-                    viewModel.addToCart(product)
-                    Toast.makeText(context, "Added: ${product.name}", Toast.LENGTH_SHORT).show()
-                } else {
-                    Toast.makeText(context, "Product not found", Toast.LENGTH_SHORT).show()
-                }
-                showScanner = false
-            },
-            onDismiss = { showScanner = false },
-            onPriceConfirmed = {}
-        )
+        Box(modifier = Modifier.fillMaxSize()) {
+            CameraScannerView(
+                isBarcodeOnly = true,
+                onBarcodeConfirmed = { barcode ->
+                    val product = products.find { it.barcode == barcode }
+                    if (product != null) {
+                        viewModel.addToCart(product)
+                        Toast.makeText(context, "Added: ${product.name}", Toast.LENGTH_SHORT).show()
+                    } else {
+                        Toast.makeText(context, "Product not found", Toast.LENGTH_SHORT).show()
+                    }
+                    showScanner = false
+                },
+                onDismiss = { showScanner = false },
+                onPriceConfirmed = {}
+            )
+        }
     }
 
     if (showPaymentDialog) {

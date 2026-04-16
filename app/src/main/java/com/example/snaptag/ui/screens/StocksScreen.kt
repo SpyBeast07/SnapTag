@@ -133,40 +133,42 @@ fun StocksScreen(
         }
 
         if (showScanner) {
-            CameraScannerView(
-                isBarcodeOnly = isSearchScanning,
-                onPriceConfirmed = { price ->
-                    scannedPrice = price
-                    scannedName = ""
-                    scannedBarcode = ""
-                    showScanner = false
-                    isSearchScanning = false
-                    isAddingProduct = true
-                },
-                onBarcodeConfirmed = { barcode ->
-                    showScanner = false
-                    if (isSearchScanning) {
-                        viewModel.updateSearchQuery(barcode)
+            Box(modifier = Modifier.fillMaxSize()) {
+                CameraScannerView(
+                    isBarcodeOnly = isSearchScanning,
+                    onPriceConfirmed = { price ->
+                        scannedPrice = price
+                        scannedName = ""
+                        scannedBarcode = ""
+                        showScanner = false
                         isSearchScanning = false
-                    } else {
-                        val existing = products.find { it.barcode == barcode || it.name.equals(barcode, ignoreCase = true) }
-                        if (existing != null) {
-                            // Ask to increment instead of auto-incrementing
-                            showConfirmIncrementDialog = existing
+                        isAddingProduct = true
+                    },
+                    onBarcodeConfirmed = { barcode ->
+                        showScanner = false
+                        if (isSearchScanning) {
+                            viewModel.updateSearchQuery(barcode)
+                            isSearchScanning = false
                         } else {
-                            // Also prepare for adding a new product
-                            scannedName = ""
-                            scannedPrice = ""
-                            scannedBarcode = barcode
-                            isAddingProduct = true
+                            val existing = products.find { it.barcode == barcode || it.name.equals(barcode, ignoreCase = true) }
+                            if (existing != null) {
+                                // Ask to increment instead of auto-incrementing
+                                showConfirmIncrementDialog = existing
+                            } else {
+                                // Also prepare for adding a new product
+                                scannedName = ""
+                                scannedPrice = ""
+                                scannedBarcode = barcode
+                                isAddingProduct = true
+                            }
                         }
+                    },
+                    onDismiss = { 
+                        showScanner = false
+                        isSearchScanning = false
                     }
-                },
-                onDismiss = { 
-                    showScanner = false
-                    isSearchScanning = false
-                }
-            )
+                )
+            }
         }
     }
 

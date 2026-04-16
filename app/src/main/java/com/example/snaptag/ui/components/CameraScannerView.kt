@@ -1,14 +1,21 @@
 package com.example.snaptag.ui.components
 
+import android.annotation.SuppressLint
 import android.util.Log
 import android.util.Size
+import android.view.MotionEvent
 import androidx.camera.core.*
 import androidx.camera.lifecycle.ProcessCameraProvider
 import androidx.camera.view.PreviewView
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
+import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -19,8 +26,10 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.compose.ui.viewinterop.AndroidView
 import androidx.core.content.ContextCompat
+import kotlinx.coroutines.delay
 import com.google.mlkit.vision.barcode.BarcodeScannerOptions
 import com.google.mlkit.vision.barcode.BarcodeScanning
 import com.google.mlkit.vision.barcode.common.Barcode
@@ -29,7 +38,8 @@ import com.google.mlkit.vision.text.TextRecognition
 import com.google.mlkit.vision.text.latin.TextRecognizerOptions
 import java.util.concurrent.Executors
 
-@OptIn(ExperimentalGetImage::class)
+@OptIn(androidx.annotation.OptIn::class)
+@androidx.camera.core.ExperimentalGetImage
 @Composable
 fun CameraScannerView(
     onPriceConfirmed: (String) -> Unit,
@@ -43,7 +53,6 @@ fun CameraScannerView(
     
     val textRecognizer = remember { TextRecognition.getClient(TextRecognizerOptions.DEFAULT_OPTIONS) }
     val barcodeScanner = remember { 
-        // Exclude QR code as requested
         val options = BarcodeScannerOptions.Builder()
             .setBarcodeFormats(
                 Barcode.FORMAT_CODE_128,
@@ -63,247 +72,291 @@ fun CameraScannerView(
         BarcodeScanning.getClient(options)
     }
 
-    var scannedResult by remember { mutableStateOf<String?>(null) }
-    var resultType by remember { mutableStateOf<ScannerResultType?>(null) }
+    var stablePrices by remember { mutableStateOf<List<ScoredPrice>>(emptyList()) }
+    var uiPrices by remember { mutableStateOf<List<ScoredPrice>>(emptyList()) }
     var isPaused by remember { mutableStateOf(false) }
+    var frameCounter by remember { mutableIntStateOf(0) }
+    var camera by remember { mutableStateOf<Camera?>(null) }
 
-    // Stability detection for OCR
-    var lastDetectedOcr by remember { mutableStateOf("") }
-    var stableCountOcr by remember { mutableStateOf(0) }
-    var currentLiveOcr by remember { mutableStateOf("") }
+    // UI update throttling (~500ms)
+    LaunchedEffect(stablePrices) {
+        if (stablePrices.isNotEmpty()) {
+            delay(500)
+            val currentUiPrices = uiPrices.toMutableList()
+            var changed = false
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        AndroidView(
-            factory = { ctx ->
-                val previewView = PreviewView(ctx).apply {
-                    scaleType = PreviewView.ScaleType.FILL_CENTER
-                }
-                val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
-
-                cameraProviderFuture.addListener({
-                    val cameraProvider = cameraProviderFuture.get()
-                    val preview = Preview.Builder().build().also {
-                        it.setSurfaceProvider(previewView.surfaceProvider)
+            stablePrices.forEach { stable ->
+                val existingIndex = currentUiPrices.indexOfFirst { it.price == stable.price }
+                if (existingIndex != -1) {
+                    // Update score if it changed
+                    if (currentUiPrices[existingIndex].score != stable.score) {
+                        currentUiPrices[existingIndex] = stable
+                        changed = true
                     }
-
-                    val imageAnalysis = ImageAnalysis.Builder()
-                        .setTargetResolution(Size(1280, 720))
-                        .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
-                        .build()
-
-                    imageAnalysis.setAnalyzer(executor) { imageProxy ->
-                        if (isPaused) {
-                            imageProxy.close()
-                            return@setAnalyzer
-                        }
-
-                        val mediaImage = imageProxy.image
-                        if (mediaImage != null) {
-                            val image = InputImage.fromMediaImage(mediaImage, imageProxy.imageInfo.rotationDegrees)
-                            
-                            // 1. Try Barcode first
-                            barcodeScanner.process(image)
-                                .addOnSuccessListener { barcodes ->
-                                    if (barcodes.isNotEmpty()) {
-                                        val barcodeValue = barcodes[0].rawValue ?: barcodes[0].displayValue
-                                        if (barcodeValue != null) {
-                                            scannedResult = barcodeValue
-                                            resultType = ScannerResultType.BARCODE
-                                            isPaused = true
-                                            imageProxy.close()
-                                            return@addOnSuccessListener
-                                        }
-                                    }
-                                    
-                                    // 2. If no barcode, try OCR (unless barcode only)
-                                    if (!isBarcodeOnly) {
-                                        textRecognizer.process(image)
-                                            .addOnSuccessListener { visionText ->
-                                                val priceElements = visionText.textBlocks.flatMap { block ->
-                                                    block.lines.flatMap { line ->
-                                                        line.elements.map { element ->
-                                                            OCRPriceElement(
-                                                                text = element.text,
-                                                                boundingBox = element.boundingBox
-                                                            )
-                                                        }
-                                                    }
-                                                }
-
-                                                val detected = PriceDetector.detectPrice(priceElements)
-                                                if (detected != null) {
-                                                    currentLiveOcr = detected
-                                                    if (detected == lastDetectedOcr) {
-                                                        stableCountOcr++
-                                                    } else {
-                                                        stableCountOcr = 1
-                                                        lastDetectedOcr = detected
-                                                    }
-
-                                                    if (stableCountOcr >= 3) {
-                                                        scannedResult = detected
-                                                        resultType = ScannerResultType.PRICE
-                                                        isPaused = true
-                                                    }
-                                                }
-                                            }
-                                            .addOnCompleteListener { imageProxy.close() }
-                                    } else {
-                                        imageProxy.close()
-                                    }
-                                }
-                                .addOnFailureListener {
-                                    imageProxy.close()
-                                }
-                        } else {
-                            imageProxy.close()
-                        }
-                    }
-
-                    val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
-                    try {
-                        cameraProvider.unbindAll()
-                        cameraProvider.bindToLifecycle(
-                            lifecycleOwner,
-                            cameraSelector,
-                            preview,
-                            imageAnalysis
-                        )
-                    } catch (e: Exception) {
-                        Log.e("CameraScannerView", "Use case binding failed", e)
-                    }
-                }, ContextCompat.getMainExecutor(ctx))
-                previewView
-            },
-            modifier = Modifier.fillMaxSize()
-        )
-
-        // Dim background when paused
-        if (isPaused) {
-            Box(modifier = Modifier.fillMaxSize().background(Color.Black.copy(alpha = 0.4f)))
-        }
-
-        // Overlay UI (Bottom)
-        Column(
-            modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 64.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
-        ) {
-            if (isPaused && scannedResult != null) {
-                Card(
-                    colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-                    elevation = CardDefaults.cardElevation(8.dp),
-                    shape = MaterialTheme.shapes.extraLarge
-                ) {
-                    Column(
-                        modifier = Modifier.padding(24.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        Text(
-                            if (resultType == ScannerResultType.PRICE) "Price Detected" else "Barcode Scanned",
-                            style = MaterialTheme.typography.labelLarge,
-                            color = MaterialTheme.colorScheme.secondary
-                        )
-                        Text(
-                            text = if (resultType == ScannerResultType.PRICE) "₹$scannedResult" else scannedResult!!,
-                            style = if (resultType == ScannerResultType.PRICE) MaterialTheme.typography.displayMedium else MaterialTheme.typography.headlineMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 8.dp)
-                        )
-                        Spacer(modifier = Modifier.height(16.dp))
-                        Row(horizontalArrangement = Arrangement.spacedBy(32.dp)) {
-                            FilledIconButton(
-                                onClick = {
-                                    isPaused = false
-                                    scannedResult = null
-                                    resultType = null
-                                    stableCountOcr = 0
-                                    lastDetectedOcr = ""
-                                },
-                                modifier = Modifier.size(56.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.errorContainer,
-                                    contentColor = MaterialTheme.colorScheme.error
-                                )
-                            ) {
-                                Icon(Icons.Default.Close, contentDescription = "Retry", modifier = Modifier.size(32.dp))
-                            }
-                            FilledIconButton(
-                                onClick = {
-                                    if (resultType == ScannerResultType.PRICE) {
-                                        onPriceConfirmed(scannedResult!!)
-                                    } else {
-                                        onBarcodeConfirmed(scannedResult!!)
-                                    }
-                                },
-                                modifier = Modifier.size(56.dp),
-                                colors = IconButtonDefaults.filledIconButtonColors(
-                                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.primary
-                                )
-                            ) {
-                                Icon(Icons.Default.Check, contentDescription = "Confirm", modifier = Modifier.size(32.dp))
-                            }
-                        }
-                    }
-                }
-            } else {
-                Surface(
-                    onClick = {
-                        if (currentLiveOcr.isNotEmpty()) {
-                            scannedResult = currentLiveOcr
-                            resultType = ScannerResultType.PRICE
-                            isPaused = true
-                        }
-                    },
-                    enabled = currentLiveOcr.isNotEmpty(),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.9f),
-                    shape = MaterialTheme.shapes.extraLarge,
-                    tonalElevation = 4.dp
-                ) {
-                    Column(
-                        modifier = Modifier.padding(horizontal = 24.dp, vertical = 12.dp),
-                        horizontalAlignment = Alignment.CenterHorizontally
-                    ) {
-                        if (currentLiveOcr.isNotEmpty()) {
-                            Text(
-                                text = "Detecting Price: ₹$currentLiveOcr",
-                                style = MaterialTheme.typography.titleMedium,
-                                color = MaterialTheme.colorScheme.primary,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Tap to capture now",
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
-                        } else {
-                            Text(
-                                text = if (isBarcodeOnly) "Scanning for Barcodes..." else "Scanning for Barcodes or Prices...",
-                                style = MaterialTheme.typography.bodyLarge
-                            )
-                        }
-                    }
+                } else {
+                    // Add new price
+                    currentUiPrices.add(stable)
+                    changed = true
                 }
             }
 
-            Spacer(modifier = Modifier.height(32.dp))
+            if (changed) {
+                uiPrices = currentUiPrices.sortedByDescending { it.score }
+            }
+        }
+    }
 
-            Button(
-                onClick = onDismiss,
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = Color.Black.copy(alpha = 0.5f),
-                    contentColor = Color.White
+    // Clear stability when entering/exiting
+    DisposableEffect(Unit) {
+        PriceDetector.clearStability()
+        onDispose {
+            PriceDetector.clearStability()
+        }
+    }
+
+    // Full-screen Box to consume clicks and prevent them from leaking to the screen behind
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background)
+            .clickable(
+                interactionSource = remember { MutableInteractionSource() },
+                indication = null,
+                onClick = { /* Consume clicks */ }
+            )
+    ) {
+        Column(modifier = Modifier.fillMaxSize()) {
+            // Camera Preview Section
+            Box(modifier = Modifier.weight(1.2f)) {
+                AndroidView(
+                    factory = { ctx ->
+                        val previewView = PreviewView(ctx).apply {
+                            scaleType = PreviewView.ScaleType.FILL_CENTER
+                        }
+
+                        // Tap-to-Focus Implementation
+                        @SuppressLint("ClickableViewAccessibility")
+                        previewView.setOnTouchListener { view, event ->
+                            if (event.action == MotionEvent.ACTION_UP) {
+                                view.performClick()
+                                val factory = previewView.meteringPointFactory
+                                val point = factory.createPoint(event.x, event.y)
+                                val action = FocusMeteringAction.Builder(point).build()
+                                camera?.cameraControl?.startFocusAndMetering(action)
+                            }
+                            true
+                        }
+
+                        val cameraProviderFuture = ProcessCameraProvider.getInstance(ctx)
+
+                        cameraProviderFuture.addListener({
+                            val cameraProvider = cameraProviderFuture.get()
+                            val preview = Preview.Builder().build().also {
+                                it.setSurfaceProvider(previewView.surfaceProvider)
+                            }
+
+                            val imageAnalysis = ImageAnalysis.Builder()
+                                .setTargetResolution(Size(1280, 720))
+                                .setBackpressureStrategy(ImageAnalysis.STRATEGY_KEEP_ONLY_LATEST)
+                                .build()
+
+                            imageAnalysis.setAnalyzer(executor) { imageProxy ->
+                                frameCounter++
+                                if (isPaused || (!isBarcodeOnly && frameCounter % 3 != 0)) {
+                                    imageProxy.close()
+                                    return@setAnalyzer
+                                }
+
+                                val mediaImage = imageProxy.image
+                                if (mediaImage != null) {
+                                    val rotation = imageProxy.imageInfo.rotationDegrees
+                                    val image = InputImage.fromMediaImage(mediaImage, rotation)
+                                    
+                                    // 1. Barcode Detection
+                                    barcodeScanner.process(image)
+                                        .addOnSuccessListener { barcodes ->
+                                            if (barcodes.isNotEmpty()) {
+                                                val barcodeValue = barcodes[0].rawValue ?: barcodes[0].displayValue
+                                                if (barcodeValue != null) {
+                                                    Log.d("CameraScanner", "Barcode detected: $barcodeValue")
+                                                    onBarcodeConfirmed(barcodeValue)
+                                                    isPaused = true
+                                                }
+                                            }
+                                            
+                                            // 2. Price OCR
+                                            if (!isBarcodeOnly && !isPaused) {
+                                                textRecognizer.process(image)
+                                                    .addOnSuccessListener { visionText ->
+                                                        val elements = visionText.textBlocks.flatMap { block ->
+                                                            block.lines.flatMap { line ->
+                                                                line.elements.map { element ->
+                                                                    OCRPriceElement(
+                                                                        text = element.text,
+                                                                        boundingBox = element.boundingBox
+                                                                    )
+                                                                }
+                                                            }
+                                                        }
+
+                                                        val currentPrices = PriceDetector.detectPrices(elements, visionText.text)
+                                                        stablePrices = PriceDetector.updateStability(currentPrices)
+                                                    }
+                                                    .addOnFailureListener { e ->
+                                                        Log.e("CameraScanner", "OCR Failed", e)
+                                                    }
+                                                    .addOnCompleteListener { imageProxy.close() }
+                                            } else {
+                                                imageProxy.close()
+                                            }
+                                        }
+                                        .addOnFailureListener { e ->
+                                            Log.e("CameraScanner", "Barcode Detection Failed", e)
+                                            imageProxy.close()
+                                        }
+                                } else {
+                                    imageProxy.close()
+                                }
+                            }
+
+                            val cameraSelector = CameraSelector.DEFAULT_BACK_CAMERA
+                            try {
+                                cameraProvider.unbindAll()
+                                camera = cameraProvider.bindToLifecycle(
+                                    lifecycleOwner,
+                                    cameraSelector,
+                                    preview,
+                                    imageAnalysis
+                                )
+                            } catch (e: Exception) {
+                                Log.e("CameraScannerView", "Binding failed", e)
+                            }
+                        }, ContextCompat.getMainExecutor(ctx))
+                        previewView
+                    },
+                    modifier = Modifier.fillMaxSize()
                 )
+
+                // Center Guide Overlay
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(48.dp),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                        .height(120.dp)
+                        .background(Color.White.copy(alpha = 0.1f), RoundedCornerShape(12.dp))
+                        .border(2.dp, Color.White.copy(alpha = 0.5f), RoundedCornerShape(12.dp))
+                    )
+                }
+
+                // Close Button
+                IconButton(
+                    onClick = onDismiss,
+                    modifier = Modifier
+                        .align(Alignment.TopEnd)
+                        .padding(16.dp)
+                        .background(Color.Black.copy(alpha = 0.5f), RoundedCornerShape(24.dp))
+                ) {
+                    Icon(Icons.Default.Close, contentDescription = "Close", tint = Color.White)
+                }
+            }
+
+            // Prices List Section
+            Surface(
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(topStart = 24.dp, topEnd = 24.dp),
+                tonalElevation = 8.dp
             ) {
-                Text("Cancel")
+                Column(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(16.dp)
+                ) {
+                    Text(
+                        text = "Detected Prices",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    if (uiPrices.isEmpty()) {
+                        Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                            Text(
+                                text = if (isBarcodeOnly) "Point camera at a barcode" else "Point camera at a price tag",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        val recommended = PriceDetector.getBestPrice(uiPrices)
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 16.dp)
+                        ) {
+                                    items(uiPrices) { scoredPrice ->
+                                        val isRecommended = scoredPrice.price == recommended
+                                        PriceItem(
+                                            price = scoredPrice,
+                                            isRecommended = isRecommended,
+                                            onClick = {
+                                                isPaused = true
+                                                PriceDetector.clearStability()
+                                                onPriceConfirmed(scoredPrice.price)
+                                            }
+                                        )
+                                    }
+                        }
+                    }
+                }
             }
         }
     }
 }
 
-enum class ScannerResultType {
-    PRICE, BARCODE
+@Composable
+fun PriceItem(price: ScoredPrice, isRecommended: Boolean, onClick: () -> Unit) {
+    Card(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { onClick() },
+        colors = CardDefaults.cardColors(
+            containerColor = if (isRecommended) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.surfaceVariant
+        ),
+        shape = RoundedCornerShape(12.dp)
+    ) {
+        Row(
+            modifier = Modifier
+                .padding(16.dp)
+                .fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column {
+                Text(
+                    text = "₹${price.price}",
+                    fontSize = 20.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = if (isRecommended) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                if (isRecommended) {
+                    Text(
+                        text = "Best Match (Score: ${price.score})",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            Text(
+                text = "Select",
+                style = MaterialTheme.typography.labelLarge,
+                color = if (isRecommended) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.outline
+            )
+        }
+    }
 }
