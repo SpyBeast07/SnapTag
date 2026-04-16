@@ -19,6 +19,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.toArgb
+import androidx.core.view.WindowCompat
 import androidx.navigation.NavHostController
 import androidx.navigation.compose.NavHost
 import androidx.navigation.compose.composable
@@ -45,8 +48,32 @@ class MainActivity : ComponentActivity() {
         enableEdgeToEdge()
         val repository = (application as SnapTagApp).repository
         val viewModelFactory = ProductViewModelFactory(repository, application)
+        val sharedPrefs = getSharedPreferences("SnapTagPrefs", MODE_PRIVATE)
+        val initialTheme = sharedPrefs.getString("theme_mode", "system") ?: "system"
+
         setContent {
-            SnapTagTheme {
+            val productViewModel: ProductViewModel = viewModel(factory = viewModelFactory)
+            val themeMode by productViewModel.themeMode.collectAsState(initialTheme)
+
+            val isDark = when (themeMode) {
+                "light" -> false
+                "dark" -> true
+                else -> androidx.compose.foundation.isSystemInDarkTheme()
+            }
+
+            val context = LocalContext.current
+            LaunchedEffect(isDark) {
+                val window = (context as? android.app.Activity)?.window
+                if (window != null) {
+                    val insetsController = WindowCompat.getInsetsController(window, window.decorView)
+                    insetsController.isAppearanceLightStatusBars = !isDark
+                    insetsController.isAppearanceLightNavigationBars = !isDark
+                    window.statusBarColor = Color.Transparent.toArgb()
+                    window.navigationBarColor = Color.Transparent.toArgb()
+                }
+            }
+
+            SnapTagTheme(themeMode = themeMode) {
                 val navController = rememberNavController()
                 AppNavigation(navController, viewModelFactory)
             }
@@ -158,58 +185,63 @@ fun LoadingScreen(onLoaded: () -> Unit) {
         onLoaded()
     }
 
-    Box(
-        modifier = Modifier
-            .fillMaxSize()
-            .padding(16.dp),
-        contentAlignment = Alignment.Center
+    Surface(
+        modifier = Modifier.fillMaxSize(),
+        color = MaterialTheme.colorScheme.background
     ) {
-        Column(
-            horizontalAlignment = Alignment.CenterHorizontally,
-            verticalArrangement = Arrangement.Center,
-            modifier = Modifier.fillMaxWidth()
-        ) {
-            Image(
-                painter = painterResource(id = R.drawable.logo),
-                contentDescription = "App Logo",
-                modifier = Modifier
-                    .size(120.dp)
-                    .clip(CircleShape),
-                contentScale = ContentScale.Crop
-            )
-            
-            Spacer(modifier = Modifier.height(24.dp))
-            
-            Text(
-                text = "SnapTag",
-                fontSize = 32.sp,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.primary
-            )
-            
-            Text(
-                text = "Fast stock entry for shops",
-                fontSize = 16.sp,
-                color = MaterialTheme.colorScheme.secondary
-            )
-        }
-
-        Column(
+        Box(
             modifier = Modifier
-                .align(Alignment.BottomCenter)
-                .padding(bottom = 32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .fillMaxSize()
+                .padding(16.dp),
+            contentAlignment = Alignment.Center
         ) {
-            Text(
-                text = "Built with ❤ by Kushagra",
-                fontSize = 14.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
-            Text(
-                text = "Version 1.0.0",
-                fontSize = 12.sp,
-                color = MaterialTheme.colorScheme.outline
-            )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                verticalArrangement = Arrangement.Center,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Image(
+                    painter = painterResource(id = R.drawable.logo),
+                    contentDescription = "App Logo",
+                    modifier = Modifier
+                        .size(120.dp)
+                        .clip(CircleShape),
+                    contentScale = ContentScale.Crop
+                )
+                
+                Spacer(modifier = Modifier.height(24.dp))
+                
+                Text(
+                    text = "SnapTag",
+                    fontSize = 32.sp,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                
+                Text(
+                    text = "Fast stock entry for shops",
+                    fontSize = 16.sp,
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
+
+            Column(
+                modifier = Modifier
+                    .align(Alignment.BottomCenter)
+                    .padding(bottom = 32.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
+            ) {
+                Text(
+                    text = "Built with ❤ by Kushagra",
+                    fontSize = 14.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+                Text(
+                    text = "Version 1.0.0",
+                    fontSize = 12.sp,
+                    color = MaterialTheme.colorScheme.outline
+                )
+            }
         }
     }
 }

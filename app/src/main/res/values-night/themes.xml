@@ -1,15 +1,15 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <!-- Base application theme. -->
-    <style name="Theme.SnapTag" parent="android:Theme.Material.Light.NoActionBar">
+    <!-- Base application theme for night mode. -->
+    <style name="Theme.SnapTag" parent="android:Theme.Material.NoActionBar">
         <item name="android:windowNoTitle">true</item>
         <item name="android:windowActionBar">false</item>
-        <item name="android:windowBackground">#FFFFFF</item>
+        <item name="android:windowBackground">#000000</item>
     </style>
 
-    <!-- Splash Screen theme. -->
+    <!-- Splash Screen theme for night mode. -->
     <style name="Theme.SnapTag.Starting" parent="Theme.SplashScreen">
-        <item name="windowSplashScreenBackground">#FFFFFF</item>
+        <item name="windowSplashScreenBackground">#000000</item>
         <item name="windowSplashScreenAnimatedIcon">@drawable/logo</item>
         <item name="postSplashScreenTheme">@style/Theme.SnapTag</item>
     </style>

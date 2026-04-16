@@ -56,12 +56,14 @@ fun SettingsScreen(
     val shopEmail by viewModel.shopEmail.collectAsState()
     val shopGst by viewModel.shopGst.collectAsState()
     val footerNote by viewModel.footerNote.collectAsState()
+    val themeMode by viewModel.themeMode.collectAsState()
 
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
     var showClearDialog by remember { mutableStateOf(false) }
     var showReceiptDialog by remember { mutableStateOf(false) }
+    var showAppearanceDialog by remember { mutableStateOf(false) }
 
     val qrPickerLauncher = rememberLauncherForActivityResult(
         contract = ActivityResultContracts.GetContent(),
@@ -118,6 +120,71 @@ fun SettingsScreen(
         )
     }
 
+    if (showAppearanceDialog) {
+        AlertDialog(
+            onDismissRequest = { showAppearanceDialog = false },
+            title = { Text("Choose Appearance") },
+            text = {
+                Column {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.updateThemeMode("system")
+                                showAppearanceDialog = false
+                            }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        RadioButton(selected = themeMode == "system", onClick = {
+                            viewModel.updateThemeMode("system")
+                            showAppearanceDialog = false
+                        })
+                        Text("System Default", modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.updateThemeMode("light")
+                                showAppearanceDialog = false
+                            }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        RadioButton(selected = themeMode == "light", onClick = {
+                            viewModel.updateThemeMode("light")
+                            showAppearanceDialog = false
+                        })
+                        Text("Light", modifier = Modifier.padding(start = 8.dp))
+                    }
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable {
+                                viewModel.updateThemeMode("dark")
+                                showAppearanceDialog = false
+                            }
+                            .padding(vertical = 8.dp)
+                    ) {
+                        RadioButton(selected = themeMode == "dark", onClick = {
+                            viewModel.updateThemeMode("dark")
+                            showAppearanceDialog = false
+                        })
+                        Text("Dark", modifier = Modifier.padding(start = 8.dp))
+                    }
+                }
+            },
+            confirmButton = {},
+            dismissButton = {
+                TextButton(onClick = { showAppearanceDialog = false }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
     if (showReceiptDialog) {
         var tempName by remember { mutableStateOf(shopName) }
         var tempAddress by remember { mutableStateOf(shopAddress) }
@@ -164,16 +231,6 @@ fun SettingsScreen(
                 .fillMaxSize()
                 .padding(padding)
         ) {
-            item {
-                SettingsHeader("General")
-                SettingsItem(
-                    icon = Icons.Default.Language,
-                    title = "Language",
-                    subtitle = "English (US)",
-                    onClick = {}
-                )
-            }
-
             item {
                 SettingsHeader("Receipt Settings")
                 SettingsItem(
@@ -240,6 +297,26 @@ fun SettingsScreen(
                     title = "Clear Data",
                     subtitle = "Reset all inventory (Careful!)",
                     onClick = { showClearDialog = true }
+                )
+            }
+
+            item {
+                SettingsHeader("General")
+                SettingsItem(
+                    icon = Icons.Default.Palette,
+                    title = "Appearance",
+                    subtitle = when(themeMode) {
+                        "light" -> "Light"
+                        "dark" -> "Dark"
+                        else -> "System Default"
+                    },
+                    onClick = { showAppearanceDialog = true }
+                )
+                SettingsItem(
+                    icon = Icons.Default.Language,
+                    title = "Language",
+                    subtitle = "English (US)",
+                    onClick = {}
                 )
             }
 

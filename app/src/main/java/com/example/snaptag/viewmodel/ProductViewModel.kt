@@ -41,6 +41,14 @@ class ProductViewModel(private val repository: ProductRepository, application: A
     private val _footerNote = MutableStateFlow(sharedPrefs.getString("footer_note", "Thank you for shopping with us!") ?: "Thank you for shopping with us!")
     val footerNote: StateFlow<String> = _footerNote.asStateFlow()
 
+    private val _themeMode = MutableStateFlow(sharedPrefs.getString("theme_mode", "system") ?: "system")
+    val themeMode: StateFlow<String> = _themeMode.asStateFlow()
+
+    fun updateThemeMode(mode: String) {
+        sharedPrefs.edit().putString("theme_mode", mode).apply()
+        _themeMode.value = mode
+    }
+
     fun updateReceiptDetails(
         name: String,
         address: String,
