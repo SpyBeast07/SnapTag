@@ -77,32 +77,37 @@ fun CameraScannerView(
     var isPaused by remember { mutableStateOf(false) }
     var frameCounter by remember { mutableIntStateOf(0) }
     var camera by remember { mutableStateOf<Camera?>(null) }
+    var lastUpdateTime by remember { mutableLongStateOf(0L) }
 
-    // UI update throttling (~500ms)
+    // UI update throttling (~500ms) with list pruning
     LaunchedEffect(stablePrices) {
-        if (stablePrices.isNotEmpty()) {
-            delay(500)
-            val currentUiPrices = uiPrices.toMutableList()
-            var changed = false
+        val now = System.currentTimeMillis()
+        if (now - lastUpdateTime < 500) return@LaunchedEffect
 
-            stablePrices.forEach { stable ->
-                val existingIndex = currentUiPrices.indexOfFirst { it.price == stable.price }
-                if (existingIndex != -1) {
-                    // Update score if it changed
-                    if (currentUiPrices[existingIndex].score != stable.score) {
-                        currentUiPrices[existingIndex] = stable
-                        changed = true
-                    }
-                } else {
-                    // Add new price
-                    currentUiPrices.add(stable)
+        lastUpdateTime = now
+
+        val currentSet = stablePrices.map { it.price }.toSet()
+        // Pruning: Only keep prices that are still present in the stablePrices list
+        val currentUiPrices = uiPrices.filter { it.price in currentSet }.toMutableList()
+        var changed = uiPrices.size != currentUiPrices.size
+
+        stablePrices.forEach { stable ->
+            val existingIndex = currentUiPrices.indexOfFirst { it.price == stable.price }
+            if (existingIndex != -1) {
+                // Update score if it changed
+                if (currentUiPrices[existingIndex].score != stable.score) {
+                    currentUiPrices[existingIndex] = stable
                     changed = true
                 }
+            } else {
+                // Add new price if not already in the list
+                currentUiPrices.add(stable)
+                changed = true
             }
+        }
 
-            if (changed) {
-                uiPrices = currentUiPrices.sortedByDescending { it.score }
-            }
+        if (changed) {
+            uiPrices = currentUiPrices.sortedByDescending { it.score }
         }
     }
 
@@ -299,18 +304,18 @@ fun CameraScannerView(
                             verticalArrangement = Arrangement.spacedBy(8.dp),
                             contentPadding = PaddingValues(bottom = 16.dp)
                         ) {
-                                    items(uiPrices) { scoredPrice ->
-                                        val isRecommended = scoredPrice.price == recommended
-                                        PriceItem(
-                                            price = scoredPrice,
-                                            isRecommended = isRecommended,
-                                            onClick = {
-                                                isPaused = true
-                                                PriceDetector.clearStability()
-                                                onPriceConfirmed(scoredPrice.price)
-                                            }
-                                        )
+                            items(uiPrices, key = { it.price }) { scoredPrice ->
+                                val isRecommended = scoredPrice.price == recommended
+                                PriceItem(
+                                    price = scoredPrice,
+                                    isRecommended = isRecommended,
+                                    onClick = {
+                                        isPaused = true
+                                        PriceDetector.clearStability()
+                                        onPriceConfirmed(scoredPrice.price)
                                     }
+                                )
+                            }
                         }
                     }
                 }
