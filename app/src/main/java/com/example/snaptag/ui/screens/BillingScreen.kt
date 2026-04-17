@@ -31,12 +31,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
+import com.example.snaptag.utils.HapticManager
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
-import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
 import com.example.snaptag.ui.components.CameraScannerView
 import com.example.snaptag.ui.components.TopBar
 import com.example.snaptag.ui.components.SearchBar
@@ -62,8 +61,6 @@ fun BillingScreen(
     val shopEmail by productViewModel.shopEmail.collectAsState()
     val shopGst by productViewModel.shopGst.collectAsState()
     val footerNote by productViewModel.footerNote.collectAsState()
-
-    val view = LocalView.current
 
     var showScanner by remember { mutableStateOf(false) }
     var showBottomSheet by remember { mutableStateOf(false) }
@@ -106,7 +103,7 @@ fun BillingScreen(
                     query = searchQuery,
                     onQueryChange = { viewModel.updateSearchQuery(it) },
                     onScanClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        HapticManager.light(context)
                         val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                         if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
                             showScanner = true
@@ -147,7 +144,7 @@ fun BillingScreen(
                                             trailingContent = {
                                                 IconButton(onClick = {
                                                     if ((cartItem?.quantity ?: 0) < product.stock) {
-                                                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                                        HapticManager.medium(context)
                                                         viewModel.addToCart(product)
                                                         viewModel.updateSearchQuery("")
                                                     } else {
@@ -159,7 +156,7 @@ fun BillingScreen(
                                             },
                                             modifier = Modifier.clickable {
                                                 if ((cartItem?.quantity ?: 0) < product.stock) {
-                                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                                    HapticManager.medium(context)
                                                     viewModel.addToCart(product)
                                                     viewModel.updateSearchQuery("")
                                                 } else {
@@ -230,7 +227,7 @@ fun BillingScreen(
 
             Button(
                 onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     showBottomSheet = true 
                 },
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
@@ -247,7 +244,7 @@ fun BillingScreen(
             ) {
                 OutlinedButton(
                     onClick = { 
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        HapticManager.strong(context)
                         viewModel.clearCart() 
                     },
                     modifier = Modifier.weight(1f),
@@ -262,7 +259,7 @@ fun BillingScreen(
                 Button(
                     onClick = { 
                         if (cartItems.isNotEmpty()) {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            HapticManager.light(context)
                             showPaymentDialog = true 
                         }
                     },
@@ -407,16 +404,11 @@ fun BillingScreen(
                 Button(
                     onClick = {
                         if (cartItems.isNotEmpty()) {
-                            view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                            HapticManager.strong(context)
                             val itemsForBill = cartItems.toList()
                             val amountForBill = totalAmount
                             val phoneForBill = customerPhone.ifBlank { null }
                             viewModel.generateBill(phoneForBill) { sale ->
-                                if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.R) {
-                                    view.performHapticFeedback(HapticFeedbackConstants.CONFIRM)
-                                } else {
-                                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
-                                }
                                 // Save snapshot of data for later PDF generation
                                 lastPaidItems = itemsForBill
                                 lastPaidAmount = amountForBill
@@ -457,7 +449,7 @@ fun BillingScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    HapticManager.medium(context)
                     val finalFile = PdfGenerator.generateBillPdf(
                         context = context,
                         shopName = shopName,
@@ -512,7 +504,7 @@ fun BillingScreen(
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     PdfGenerator.generateBillPdf(
                         context = context,
                         shopName = shopName,
@@ -542,7 +534,7 @@ fun ProductExploreItem(
     onIncrement: () -> Unit,
     onDecrement: () -> Unit
 ) {
-    val view = LocalView.current
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         colors = CardDefaults.cardColors(
@@ -562,7 +554,7 @@ fun ProductExploreItem(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 if (cartQuantity > 0) {
                     IconButton(onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        HapticManager.light(context)
                         onDecrement()
                     }, modifier = Modifier.size(32.dp)) {
                         Icon(Icons.Default.Remove, contentDescription = null)
@@ -572,7 +564,7 @@ fun ProductExploreItem(
                 IconButton(
                     onClick = {
                         if (cartQuantity < product.stock) {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticManager.light(context)
                         }
                         onIncrement()
                     },
@@ -595,7 +587,7 @@ fun CartItemRow(
     onDecrement: () -> Unit,
     isAtMaxStock: Boolean
 ) {
-    val view = LocalView.current
+    val context = LocalContext.current
     Card(
         modifier = Modifier.fillMaxWidth(),
         elevation = CardDefaults.cardElevation(1.dp)
@@ -615,7 +607,7 @@ fun CartItemRow(
                     fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
                 
                 IconButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     onDecrement()
                 }, modifier = Modifier.size(32.dp)) {
                     Icon(Icons.Default.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
@@ -624,7 +616,7 @@ fun CartItemRow(
                 IconButton(
                     onClick = {
                         if (!isAtMaxStock) {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticManager.light(context)
                         }
                         onIncrement()
                     },

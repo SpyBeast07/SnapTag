@@ -23,8 +23,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
-import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
+import com.example.snaptag.utils.HapticManager
 import androidx.compose.ui.platform.LocalLifecycleOwner
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -50,7 +49,6 @@ fun CameraScannerView(
     isBarcodeOnly: Boolean = false
 ) {
     val context = LocalContext.current
-    val view = LocalView.current
     val lifecycleOwner = LocalLifecycleOwner.current
     val executor = remember { Executors.newSingleThreadExecutor() }
     
@@ -187,7 +185,7 @@ fun CameraScannerView(
                                                 val barcodeValue = barcodes[0].rawValue ?: barcodes[0].displayValue
                                                 if (barcodeValue != null) {
                                                     Log.d("CameraScanner", "Barcode detected: $barcodeValue")
-                                                    view.performHapticFeedback(HapticFeedbackConstants.VIRTUAL_KEY)
+                                                    HapticManager.medium(context)
                                                     onBarcodeConfirmed(barcodeValue)
                                                     isPaused = true
                                                 }
@@ -310,11 +308,12 @@ fun CameraScannerView(
                         ) {
                             items(uiPrices, key = { it.price }) { scoredPrice ->
                                 val isRecommended = scoredPrice.price == recommended
+                                val contextItem = LocalContext.current
                                 PriceItem(
                                     price = scoredPrice,
                                     isRecommended = isRecommended,
                                     onClick = {
-                                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                        HapticManager.medium(contextItem)
                                         isPaused = true
                                         PriceDetector.clearStability()
                                         onPriceConfirmed(scoredPrice.price)

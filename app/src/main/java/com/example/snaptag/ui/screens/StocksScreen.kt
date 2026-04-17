@@ -23,8 +23,7 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
+import com.example.snaptag.utils.HapticManager
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.*
 import com.example.snaptag.viewmodel.ProductViewModel
@@ -42,8 +41,6 @@ fun StocksScreen(
     )
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
-
-    val view = LocalView.current
 
     var showScanner by remember { mutableStateOf(false) }
     var isSearchScanning by remember { mutableStateOf(false) }
@@ -74,7 +71,7 @@ fun StocksScreen(
             topBar = { TopBar("SnapTag - Stocks") },
             floatingActionButton = {
                 FloatingActionButton(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                     if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
                         showScanner = true
@@ -97,7 +94,7 @@ fun StocksScreen(
                     query = searchQuery,
                     onQueryChange = { viewModel.updateSearchQuery(it) },
                     onScanClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                        HapticManager.light(context)
                         val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
                         if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
                             isSearchScanning = true
@@ -124,16 +121,16 @@ fun StocksScreen(
                         ProductItem(
                             product = product,
                             onClick = { 
-                                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                                HapticManager.light(context)
                                 selectedProduct = product 
                             },
                             onIncrement = {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                HapticManager.light(context)
                                 viewModel.updateProduct(product.copy(stock = product.stock + 1))
                             },
                             onDecrement = {
                                 if (product.stock > 0) {
-                                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                    HapticManager.light(context)
                                     viewModel.updateProduct(product.copy(stock = product.stock - 1))
                                 }
                             }
@@ -193,7 +190,7 @@ fun StocksScreen(
             confirmButton = {
                 Button(
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        HapticManager.medium(context)
                         viewModel.updateProduct(existing.copy(stock = existing.stock + 1))
                         showConfirmIncrementDialog = null
                         Toast.makeText(context, "Stock updated", Toast.LENGTH_SHORT).show()
@@ -204,7 +201,7 @@ fun StocksScreen(
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     showConfirmIncrementDialog = null 
                 }) {
                     Text("Cancel")
@@ -221,16 +218,16 @@ fun StocksScreen(
             initialBarcode = scannedBarcode,
             existingProducts = products,
             onDismiss = { 
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                HapticManager.light(context)
                 isAddingProduct = false 
             },
             onSave = { name, price, stock, barcode ->
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                HapticManager.medium(context)
                 viewModel.addProduct(name, price, stock, barcode)
                 isAddingProduct = false
             },
             onUpdateExisting = { existing, addedStock ->
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                HapticManager.medium(context)
                 viewModel.updateProduct(existing.copy(stock = existing.stock + addedStock))
                 isAddingProduct = false
             }
@@ -243,21 +240,21 @@ fun StocksScreen(
             product = product,
             existingProducts = products,
             onDismiss = { 
-                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                HapticManager.light(context)
                 selectedProduct = null 
             },
             onSave = { name, price, stock, barcode ->
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                HapticManager.medium(context)
                 viewModel.updateProduct(product.copy(name = name, price = price, stock = stock, barcode = barcode))
                 selectedProduct = null
             },
             onUpdateExisting = { existing, addedStock ->
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                HapticManager.medium(context)
                 viewModel.updateProduct(existing.copy(stock = existing.stock + addedStock))
                 selectedProduct = null
             },
             onDelete = {
-                view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                HapticManager.strong(context)
                 viewModel.deleteProduct(product.id)
                 selectedProduct = null
             }

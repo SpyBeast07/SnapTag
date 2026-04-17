@@ -25,10 +25,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelStoreOwner
-import androidx.compose.ui.platform.LocalView
-import android.view.HapticFeedbackConstants
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.TopBar
+import com.example.snaptag.utils.HapticManager
 import com.example.snaptag.viewmodel.ProductViewModel
 import com.example.snaptag.viewmodel.ProductViewModelFactory
 import com.google.gson.Gson
@@ -60,7 +59,6 @@ fun SettingsScreen(
     val footerNote by viewModel.footerNote.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
 
-    val view = LocalView.current
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -106,7 +104,7 @@ fun SettingsScreen(
             confirmButton = {
                 TextButton(
                     onClick = {
-                        view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                        HapticManager.strong(context)
                         viewModel.clearAllData()
                         showClearDialog = false
                         Toast.makeText(context, "All data cleared", Toast.LENGTH_SHORT).show()
@@ -118,7 +116,7 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     showClearDialog = false 
                 }) {
                     Text("Cancel")
@@ -138,14 +136,14 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                HapticManager.light(context)
                                 viewModel.updateThemeMode("system")
                                 showAppearanceDialog = false
                             }
                             .padding(vertical = 8.dp)
                     ) {
                         RadioButton(selected = themeMode == "system", onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticManager.light(context)
                             viewModel.updateThemeMode("system")
                             showAppearanceDialog = false
                         })
@@ -156,14 +154,14 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                HapticManager.light(context)
                                 viewModel.updateThemeMode("light")
                                 showAppearanceDialog = false
                             }
                             .padding(vertical = 8.dp)
                     ) {
                         RadioButton(selected = themeMode == "light", onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticManager.light(context)
                             viewModel.updateThemeMode("light")
                             showAppearanceDialog = false
                         })
@@ -174,14 +172,14 @@ fun SettingsScreen(
                         modifier = Modifier
                             .fillMaxWidth()
                             .clickable {
-                                view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                                HapticManager.light(context)
                                 viewModel.updateThemeMode("dark")
                                 showAppearanceDialog = false
                             }
                             .padding(vertical = 8.dp)
                     ) {
                         RadioButton(selected = themeMode == "dark", onClick = {
-                            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                            HapticManager.light(context)
                             viewModel.updateThemeMode("dark")
                             showAppearanceDialog = false
                         })
@@ -221,7 +219,7 @@ fun SettingsScreen(
             },
             confirmButton = {
                 Button(onClick = {
-                    view.performHapticFeedback(HapticFeedbackConstants.LONG_PRESS)
+                    HapticManager.medium(context)
                     viewModel.updateReceiptDetails(tempName, tempAddress, tempPhone, tempEmail, tempGst, tempFooter)
                     showReceiptDialog = false
                     Toast.makeText(context, "Receipt details updated", Toast.LENGTH_SHORT).show()
@@ -231,7 +229,7 @@ fun SettingsScreen(
             },
             dismissButton = {
                 TextButton(onClick = { 
-                    view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+                    HapticManager.light(context)
                     showReceiptDialog = false 
                 }) {
                     Text("Cancel")
@@ -412,13 +410,13 @@ fun SettingsItem(
     subtitle: String,
     onClick: () -> Unit
 ) {
-    val view = LocalView.current
+    val context = LocalContext.current
     ListItem(
         headlineContent = { Text(title) },
         supportingContent = { Text(subtitle) },
         leadingContent = { Icon(icon, contentDescription = null) },
         modifier = Modifier.clickable { 
-            view.performHapticFeedback(HapticFeedbackConstants.KEYBOARD_TAP)
+            HapticManager.light(context)
             onClick() 
         }
     )
