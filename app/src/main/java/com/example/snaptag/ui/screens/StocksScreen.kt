@@ -44,6 +44,7 @@ fun StocksScreen(
 
     var showScanner by remember { mutableStateOf(false) }
     var isSearchScanning by remember { mutableStateOf(false) }
+    var isDialogScanning by remember { mutableStateOf(false) }
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
     var isAddingProduct by remember { mutableStateOf(false) }
     var scannedPrice by remember { mutableStateOf("") }
@@ -143,7 +144,7 @@ fun StocksScreen(
         if (showScanner) {
             Box(modifier = Modifier.fillMaxSize()) {
                 CameraScannerView(
-                    isBarcodeOnly = isSearchScanning,
+                    isBarcodeOnly = isSearchScanning || isDialogScanning,
                     onPriceConfirmed = { price ->
                         scannedPrice = price
                         scannedName = ""
@@ -157,6 +158,9 @@ fun StocksScreen(
                         if (isSearchScanning) {
                             viewModel.updateSearchQuery(barcode)
                             isSearchScanning = false
+                        } else if (isDialogScanning) {
+                            scannedBarcode = barcode
+                            isDialogScanning = false
                         } else {
                             val existing = products.find { it.barcode == barcode || it.name.equals(barcode, ignoreCase = true) }
                             if (existing != null) {
@@ -174,6 +178,7 @@ fun StocksScreen(
                     onDismiss = { 
                         showScanner = false
                         isSearchScanning = false
+                        isDialogScanning = false
                     }
                 )
             }
@@ -211,7 +216,7 @@ fun StocksScreen(
     }
 
     // Add Product Dialog
-    if (isAddingProduct) {
+    if (isAddingProduct && !isDialogScanning) {
         ProductDialog(
             initialName = scannedName,
             initialPrice = scannedPrice,
@@ -230,33 +235,59 @@ fun StocksScreen(
                 HapticManager.medium(context)
                 viewModel.updateProduct(existing.copy(stock = existing.stock + addedStock))
                 isAddingProduct = false
+            },
+            onScanRequest = {
+                HapticManager.light(context)
+                val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                    isDialogScanning = true
+                    showScanner = true
+                } else {
+                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                }
             }
         )
     }
 
     // Edit Product Dialog
-    selectedProduct?.let { product ->
+    if (selectedProduct != null && !isDialogScanning) {
+        val product = selectedProduct!!
         ProductDialog(
             product = product,
+            initialBarcode = scannedBarcode,
             existingProducts = products,
             onDismiss = { 
                 HapticManager.light(context)
                 selectedProduct = null 
+                scannedBarcode = ""
             },
             onSave = { name, price, stock, barcode ->
                 HapticManager.medium(context)
                 viewModel.updateProduct(product.copy(name = name, price = price, stock = stock, barcode = barcode))
                 selectedProduct = null
+                scannedBarcode = ""
             },
             onUpdateExisting = { existing, addedStock ->
                 HapticManager.medium(context)
                 viewModel.updateProduct(existing.copy(stock = existing.stock + addedStock))
                 selectedProduct = null
+                scannedBarcode = ""
             },
             onDelete = {
                 HapticManager.strong(context)
                 viewModel.deleteProduct(product.id)
                 selectedProduct = null
+                scannedBarcode = ""
+            },
+            onScanRequest = {
+                HapticManager.light(context)
+                val permissionCheckResult = ContextCompat.checkSelfPermission(context, Manifest.permission.CAMERA)
+                if (permissionCheckResult == PackageManager.PERMISSION_GRANTED) {
+                    isDialogScanning = true
+                    showScanner = true
+                } else {
+                    permissionLauncher.launch(Manifest.permission.CAMERA)
+                }
             }
         )
     }

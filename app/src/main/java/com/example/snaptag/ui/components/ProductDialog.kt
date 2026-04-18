@@ -2,6 +2,8 @@ package com.example.snaptag.ui.components
 
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.QrCodeScanner
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
@@ -19,12 +21,26 @@ fun ProductDialog(
     onDismiss: () -> Unit,
     onSave: (name: String, price: Double, stock: Int, barcode: String?) -> Unit,
     onUpdateExisting: ((Product, Int) -> Unit)? = null,
-    onDelete: (() -> Unit)? = null
+    onDelete: (() -> Unit)? = null,
+    onScanRequest: () -> Unit = {}
 ) {
     var name by remember { mutableStateOf(product?.name ?: initialName) }
     var price by remember { mutableStateOf(product?.price?.toString() ?: initialPrice) }
     var stock by remember { mutableStateOf(product?.stock?.toString() ?: "1") }
     var barcode by remember { mutableStateOf(product?.barcode ?: initialBarcode) }
+
+    LaunchedEffect(initialBarcode) {
+        if (initialBarcode.isNotEmpty()) {
+            barcode = initialBarcode
+        }
+    }
+
+    LaunchedEffect(product) {
+        if (product != null && initialBarcode.isEmpty()) {
+            barcode = product.barcode ?: ""
+        }
+    }
+
     var showDuplicateDialog by remember { mutableStateOf<Product?>(null) }
 
     if (showDuplicateDialog != null) {
@@ -68,7 +84,12 @@ fun ProductDialog(
                     value = barcode,
                     onValueChange = { barcode = it },
                     label = { Text("Barcode") },
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    trailingIcon = {
+                        IconButton(onClick = onScanRequest) {
+                            Icon(Icons.Default.QrCodeScanner, contentDescription = "Scan Barcode")
+                        }
+                    }
                 )
                 TextField(
                     value = price,
