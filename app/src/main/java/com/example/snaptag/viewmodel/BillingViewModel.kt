@@ -14,7 +14,8 @@ data class CartItem(
     val productId: String,
     val name: String,
     val price: Double,
-    val quantity: Int
+    val quantity: Int,
+    val gstPercentage: Double? = null
 )
 
 class BillingViewModel(private val repository: ProductRepository) : ViewModel() {
@@ -28,13 +29,43 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
     private val _searchQuery = MutableStateFlow("")
     val searchQuery: StateFlow<String> = _searchQuery.asStateFlow()
 
+    private val _isGstEnabled = MutableStateFlow(true)
+    val isGstEnabled: StateFlow<Boolean> = _isGstEnabled.asStateFlow()
+
+    fun toggleGst(enabled: Boolean) {
+        _isGstEnabled.value = enabled
+    }
+
     val totalItems: StateFlow<Int> = _cartItems
         .map { it.sumOf { item -> item.quantity } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val totalAmount: StateFlow<Double> = _cartItems
+    val totalAmount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
+        items.sumOf { item ->
+            val basePrice = item.price * item.quantity
+            if (gstEnabled && item.gstPercentage != null) {
+                basePrice + (basePrice * item.gstPercentage / 100.0)
+            } else {
+                basePrice
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val subtotalAmount: StateFlow<Double> = _cartItems
         .map { it.sumOf { item -> item.price * item.quantity } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalGstAmount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
+        if (!gstEnabled) 0.0
+        else items.sumOf { item ->
+            val basePrice = item.price * item.quantity
+            if (item.gstPercentage != null) {
+                (basePrice * item.gstPercentage / 100.0)
+            } else {
+                0.0
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
@@ -51,7 +82,7 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
                 _cartItems.value = currentList
             }
         } else if (product.stock > 0) {
-            currentList.add(CartItem(product.id, product.name, product.price, 1))
+            currentList.add(CartItem(product.id, product.name, product.price, 1, product.gstPercentage))
             _cartItems.value = currentList
         }
     }
@@ -112,7 +143,8 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
                     saleId = 0, // Will be set by DAO
                     productName = it.name,
                     quantity = it.quantity,
-                    price = it.price
+                    price = it.price,
+                    gstPercentage = it.gstPercentage
                 )
             }
 

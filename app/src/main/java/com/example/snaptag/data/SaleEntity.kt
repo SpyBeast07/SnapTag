@@ -31,5 +31,6 @@ data class SaleItemEntity(
     val saleId: Long,
     val productName: String,
     val quantity: Int,
-    val price: Double
+    val price: Double,
+    val gstPercentage: Double? = null
 )

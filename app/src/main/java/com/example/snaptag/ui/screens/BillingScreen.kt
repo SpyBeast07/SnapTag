@@ -54,6 +54,9 @@ fun BillingScreen(
     val searchQuery by viewModel.searchQuery.collectAsState()
     val totalItems by viewModel.totalItems.collectAsState()
     val totalAmount by viewModel.totalAmount.collectAsState()
+    val subtotalAmount by viewModel.subtotalAmount.collectAsState()
+    val totalGstAmount by viewModel.totalGstAmount.collectAsState()
+    val isGstEnabled by viewModel.isGstEnabled.collectAsState()
     val paymentQrUri by productViewModel.paymentQrUri.collectAsState()
     val shopName by productViewModel.shopName.collectAsState()
     val shopAddress by productViewModel.shopAddress.collectAsState()
@@ -71,6 +74,7 @@ fun BillingScreen(
     // Maintain a snapshot of the last paid cart to avoid using empty cart after viewModel.clearCart()
     var lastPaidItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
     var lastPaidAmount by remember { mutableStateOf(0.0) }
+    var lastPaidGstEnabled by remember { mutableStateOf(true) }
 
     val context = LocalContext.current
     val permissionLauncher = rememberLauncherForActivityResult(
@@ -213,12 +217,29 @@ fun BillingScreen(
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Include GST", style = MaterialTheme.typography.bodyMedium)
+                        Switch(
+                            checked = isGstEnabled,
+                            onCheckedChange = { viewModel.toggleGst(it) }
+                        )
+                    }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("Total Items:", style = MaterialTheme.typography.titleMedium)
                         Text("$totalItems", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
                     }
+                    if (isGstEnabled && totalGstAmount > 0) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Subtotal:", style = MaterialTheme.typography.bodyMedium)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodyMedium)
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Total GST:", style = MaterialTheme.typography.bodyMedium)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", style = MaterialTheme.typography.bodyMedium)
+                        }
+                    }
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Text("Subtotal:", style = MaterialTheme.typography.titleMedium)
+                        Text("Grand Total:", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}",
                             style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
                     }
@@ -408,10 +429,12 @@ fun BillingScreen(
                             val itemsForBill = cartItems.toList()
                             val amountForBill = totalAmount
                             val phoneForBill = customerPhone.ifBlank { null }
+                            val gstEnabledForBill = isGstEnabled
                             viewModel.generateBill(phoneForBill) { sale ->
                                 // Save snapshot of data for later PDF generation
                                 lastPaidItems = itemsForBill
                                 lastPaidAmount = amountForBill
+                                lastPaidGstEnabled = gstEnabledForBill
                                 Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
                                 showPaymentDialog = false
                                 showShareDialog = true
@@ -460,7 +483,8 @@ fun BillingScreen(
                         footerNote = footerNote,
                         cartItems = lastPaidItems,
                         totalAmount = lastPaidAmount,
-                        customerPhone = customerPhone.ifBlank { null }
+                        customerPhone = customerPhone.ifBlank { null },
+                        isGstEnabled = lastPaidGstEnabled
                     )
 
                     finalFile?.let { file ->
@@ -515,7 +539,8 @@ fun BillingScreen(
                         footerNote = footerNote,
                         cartItems = lastPaidItems,
                         totalAmount = lastPaidAmount,
-                        customerPhone = customerPhone.ifBlank { null }
+                        customerPhone = customerPhone.ifBlank { null },
+                        isGstEnabled = lastPaidGstEnabled
                     )
                     customerPhone = ""
                     showShareDialog = false 
@@ -599,7 +624,8 @@ fun CartItemRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.name, fontWeight = FontWeight.SemiBold)
-                Text("₹${item.price} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
+                val gstText = if (item.gstPercentage != null) " (GST ${item.gstPercentage}%)" else ""
+                Text("₹${item.price}$gstText x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {

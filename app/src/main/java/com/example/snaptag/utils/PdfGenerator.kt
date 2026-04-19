@@ -27,7 +27,8 @@ object PdfGenerator {
         footerNote: String,
         cartItems: List<CartItem>,
         totalAmount: Double,
-        customerPhone: String? = null
+        customerPhone: String? = null,
+        isGstEnabled: Boolean = true
     ): File? {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
@@ -72,9 +73,11 @@ object PdfGenerator {
         // Table Header
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText("Item Name", 40f, y, paint)
-        canvas.drawText("Qty", 300f, y, paint)
-        canvas.drawText("Price", 380f, y, paint)
-        canvas.drawText("Total", 480f, y, paint)
+        canvas.drawText("Qty", 250f, y, paint)
+        canvas.drawText("Price", 310f, y, paint)
+        canvas.drawText("GST %", 380f, y, paint)
+        canvas.drawText("GST ₹", 440f, y, paint)
+        canvas.drawText("Total", 510f, y, paint)
         y += 10f
         canvas.drawLine(40f, y, 555f, y, paint)
         y += 20f
@@ -83,9 +86,20 @@ object PdfGenerator {
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
         cartItems.forEach { item ->
             canvas.drawText(item.name, 40f, y, paint)
-            canvas.drawText(item.quantity.toString(), 300f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price), 380f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price * item.quantity), 480f, y, paint)
+            canvas.drawText(item.quantity.toString(), 250f, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price), 310f, y, paint)
+            
+            val gstPercent = if (isGstEnabled) (item.gstPercentage ?: 0.0) else 0.0
+            val gstValue = if (isGstEnabled && item.gstPercentage != null) {
+                (item.price * item.quantity * item.gstPercentage / 100.0)
+            } else {
+                0.0
+            }
+            val itemTotal = (item.price * item.quantity) + gstValue
+
+            canvas.drawText(String.format(Locale.getDefault(), "%.1f%%", gstPercent), 380f, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", gstValue), 440f, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", itemTotal), 510f, y, paint)
             y += 20f
         }
 

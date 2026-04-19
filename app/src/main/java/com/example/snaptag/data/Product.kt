@@ -5,5 +5,6 @@ data class Product(
     val name: String,
     val price: Double,
     val stock: Int,
-    val barcode: String? = null
+    val barcode: String? = null,
+    val gstPercentage: Double? = null
 )

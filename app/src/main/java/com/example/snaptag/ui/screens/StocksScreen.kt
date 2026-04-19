@@ -226,9 +226,9 @@ fun StocksScreen(
                 HapticManager.light(context)
                 isAddingProduct = false 
             },
-            onSave = { name, price, stock, barcode ->
+            onSave = { name, price, stock, barcode, gst ->
                 HapticManager.medium(context)
-                viewModel.addProduct(name, price, stock, barcode)
+                viewModel.addProduct(name, price, stock, barcode, gst)
                 isAddingProduct = false
             },
             onUpdateExisting = { existing, addedStock ->
@@ -261,9 +261,9 @@ fun StocksScreen(
                 selectedProduct = null 
                 scannedBarcode = ""
             },
-            onSave = { name, price, stock, barcode ->
+            onSave = { name, price, stock, barcode, gst ->
                 HapticManager.medium(context)
-                viewModel.updateProduct(product.copy(name = name, price = price, stock = stock, barcode = barcode))
+                viewModel.updateProduct(product.copy(name = name, price = price, stock = stock, barcode = barcode, gstPercentage = gst))
                 selectedProduct = null
                 scannedBarcode = ""
             },

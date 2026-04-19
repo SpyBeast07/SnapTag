@@ -19,7 +19,7 @@ fun ProductDialog(
     initialBarcode: String = "",
     existingProducts: List<Product> = emptyList(),
     onDismiss: () -> Unit,
-    onSave: (name: String, price: Double, stock: Int, barcode: String?) -> Unit,
+    onSave: (name: String, price: Double, stock: Int, barcode: String?, gst: Double?) -> Unit,
     onUpdateExisting: ((Product, Int) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onScanRequest: () -> Unit = {}
@@ -28,6 +28,7 @@ fun ProductDialog(
     var price by remember { mutableStateOf(product?.price?.toString() ?: initialPrice) }
     var stock by remember { mutableStateOf(product?.stock?.toString() ?: "1") }
     var barcode by remember { mutableStateOf(product?.barcode ?: initialBarcode) }
+    var gst by remember { mutableStateOf(product?.gstPercentage?.toString() ?: "") }
 
     LaunchedEffect(initialBarcode) {
         if (initialBarcode.isNotEmpty()) {
@@ -38,6 +39,7 @@ fun ProductDialog(
     LaunchedEffect(product) {
         if (product != null && initialBarcode.isEmpty()) {
             barcode = product.barcode ?: ""
+            gst = product.gstPercentage?.toString() ?: ""
         }
     }
 
@@ -99,6 +101,13 @@ fun ProductDialog(
                     modifier = Modifier.fillMaxWidth()
                 )
                 TextField(
+                    value = gst,
+                    onValueChange = { gst = it },
+                    label = { Text("GST (%) - Optional") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextField(
                     value = stock,
                     onValueChange = { stock = it },
                     label = { Text("Stock") },
@@ -112,6 +121,7 @@ fun ProductDialog(
                 onClick = {
                     val p = price.toDoubleOrNull() ?: 0.0
                     val s = stock.toIntOrNull() ?: 0
+                    val g = gst.toDoubleOrNull()
                     if (name.isNotBlank()) {
                         val duplicate = if (product == null) {
                             existingProducts.find { 
@@ -123,7 +133,7 @@ fun ProductDialog(
                         if (duplicate != null) {
                             showDuplicateDialog = duplicate
                         } else {
-                            onSave(name, p, s, if (barcode.isBlank()) null else barcode.trim())
+                            onSave(name, p, s, if (barcode.isBlank()) null else barcode.trim(), g)
                         }
                     }
                 }
