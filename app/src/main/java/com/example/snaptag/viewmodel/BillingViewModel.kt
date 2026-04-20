@@ -32,6 +32,20 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
     private val _isGstEnabled = MutableStateFlow(true)
     val isGstEnabled: StateFlow<Boolean> = _isGstEnabled.asStateFlow()
 
+    private val _discountValue = MutableStateFlow(0.0)
+    val discountValue: StateFlow<Double> = _discountValue.asStateFlow()
+
+    private val _isDiscountPercentage = MutableStateFlow(true)
+    val isDiscountPercentage: StateFlow<Boolean> = _isDiscountPercentage.asStateFlow()
+
+    fun updateDiscount(value: Double) {
+        _discountValue.value = value
+    }
+
+    fun toggleDiscountType(isPercentage: Boolean) {
+        _isDiscountPercentage.value = isPercentage
+    }
+
     fun toggleGst(enabled: Boolean) {
         _isGstEnabled.value = enabled
     }
@@ -40,29 +54,49 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
         .map { it.sumOf { item -> item.quantity } }
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0)
 
-    val totalAmount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
+    val subtotalAmount: StateFlow<Double> = _cartItems
+        .map { it.sumOf { item -> item.price * item.quantity } }
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val discountAmount: StateFlow<Double> = combine(subtotalAmount, _discountValue, _isDiscountPercentage) { subtotal, discount, isPercentage ->
+        if (isPercentage) {
+            (subtotal * discount / 100.0)
+        } else {
+            discount
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val discountedSubtotal: StateFlow<Double> = combine(subtotalAmount, discountAmount) { subtotal, discount ->
+        (subtotal - discount).coerceAtLeast(0.0)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalGstAmount: StateFlow<Double> = combine(_cartItems, discountedSubtotal, subtotalAmount, _isGstEnabled) { items, discSubtotal, subtotal, gstEnabled ->
+        if (!gstEnabled || subtotal == 0.0) 0.0
+        else {
+            val discountFactor = discSubtotal / subtotal
+            items.sumOf { item ->
+                val basePrice = item.price * item.quantity
+                if (item.gstPercentage != null) {
+                    val discountedBasePrice = basePrice * discountFactor
+                    (discountedBasePrice * item.gstPercentage / 100.0)
+                } else {
+                    0.0
+                }
+            }
+        }
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalAmount: StateFlow<Double> = combine(discountedSubtotal, totalGstAmount) { subtotal, gst ->
+        subtotal + gst
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
+
+    val totalAmountBeforeDiscount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
         items.sumOf { item ->
             val basePrice = item.price * item.quantity
             if (gstEnabled && item.gstPercentage != null) {
                 basePrice + (basePrice * item.gstPercentage / 100.0)
             } else {
                 basePrice
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
-
-    val subtotalAmount: StateFlow<Double> = _cartItems
-        .map { it.sumOf { item -> item.price * item.quantity } }
-        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
-
-    val totalGstAmount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
-        if (!gstEnabled) 0.0
-        else items.sumOf { item ->
-            val basePrice = item.price * item.quantity
-            if (item.gstPercentage != null) {
-                (basePrice * item.gstPercentage / 100.0)
-            } else {
-                0.0
             }
         }
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
@@ -115,9 +149,10 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
 
     fun clearCart() {
         _cartItems.value = emptyList()
+        _discountValue.value = 0.0
     }
 
-    fun generateBill(customerPhone: String? = null, onSuccess: (SaleEntity) -> Unit) {
+    fun generateBill(customerPhone: String? = null, finalTotal: Double, onSuccess: (SaleEntity) -> Unit) {
         viewModelScope.launch {
             val items = _cartItems.value
             if (items.isEmpty()) return@launch
@@ -125,17 +160,17 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
             // 1. Snapshot cart data to avoid race conditions
             val billItems = items.toList()
             val totalItemsCount = billItems.sumOf { it.quantity }
-            val totalBillAmount = billItems.sumOf { it.price * it.quantity }
             
             // 2. Clear cart immediately to prevent double clicks/submissions
             _cartItems.value = emptyList()
+            _discountValue.value = 0.0
 
             // 3. Update stock and record sale in a single transaction-like flow via repository
             // Create the sale record
             val sale = SaleEntity(
                 timestamp = System.currentTimeMillis(),
                 totalItems = totalItemsCount,
-                totalAmount = totalBillAmount,
+                totalAmount = finalTotal,
                 customerPhone = if (customerPhone.isNullOrBlank()) null else customerPhone
             )
             val saleItems = billItems.map {

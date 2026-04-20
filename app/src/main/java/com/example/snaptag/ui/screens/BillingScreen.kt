@@ -53,10 +53,14 @@ fun BillingScreen(
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val totalItems by viewModel.totalItems.collectAsState()
+    val totalAmountBeforeDiscount by viewModel.totalAmountBeforeDiscount.collectAsState()
     val totalAmount by viewModel.totalAmount.collectAsState()
     val subtotalAmount by viewModel.subtotalAmount.collectAsState()
     val totalGstAmount by viewModel.totalGstAmount.collectAsState()
     val isGstEnabled by viewModel.isGstEnabled.collectAsState()
+    val discountValue by viewModel.discountValue.collectAsState()
+    val isDiscountPercentage by viewModel.isDiscountPercentage.collectAsState()
+    val discountAmount by viewModel.discountAmount.collectAsState()
     val paymentQrUri by productViewModel.paymentQrUri.collectAsState()
     val shopName by productViewModel.shopName.collectAsState()
     val shopAddress by productViewModel.shopAddress.collectAsState()
@@ -70,13 +74,19 @@ fun BillingScreen(
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
     var customerPhone by remember { mutableStateOf("") }
+    var discountInput by remember { mutableStateOf("") }
     
     // Maintain a snapshot of the last paid cart to avoid using empty cart after viewModel.clearCart()
     var lastPaidItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
     var lastPaidAmount by remember { mutableStateOf(0.0) }
     var lastPaidGstEnabled by remember { mutableStateOf(true) }
+    var lastPaidDiscountAmount by remember { mutableStateOf(0.0) }
 
     val context = LocalContext.current
+    
+    LaunchedEffect(discountInput) {
+        viewModel.updateDiscount(discountInput.toDoubleOrNull() ?: 0.0)
+    }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted ->
@@ -216,7 +226,7 @@ fun BillingScreen(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Column(modifier = Modifier.padding(16.dp)) {
+                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
                         Text("Include GST", style = MaterialTheme.typography.bodyMedium)
                         Switch(
@@ -224,20 +234,67 @@ fun BillingScreen(
                             onCheckedChange = { viewModel.toggleGst(it) }
                         )
                     }
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Text("Total Items:", style = MaterialTheme.typography.titleMedium)
-                        Text("$totalItems", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+
+                    // Discount Section
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        OutlinedTextField(
+                            value = discountInput,
+                            onValueChange = { discountInput = it },
+                            label = { Text("Discount") },
+                            modifier = Modifier.weight(1f),
+                            keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
+                                keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
+                            ),
+                            singleLine = true,
+                            suffix = { Text(if (isDiscountPercentage) "%" else "₹") }
+                        )
+                        
+                        FilterChip(
+                            selected = isDiscountPercentage,
+                            onClick = { viewModel.toggleDiscountType(true) },
+                            label = { Text("%") }
+                        )
+                        FilterChip(
+                            selected = !isDiscountPercentage,
+                            onClick = { viewModel.toggleDiscountType(false) },
+                            label = { Text("₹") }
+                        )
                     }
+
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                        Text("Total Items:", style = MaterialTheme.typography.bodyMedium)
+                        Text("$totalItems", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    }
+                    
                     if (isGstEnabled && totalGstAmount > 0) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Subtotal:", style = MaterialTheme.typography.bodyMedium)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodyMedium)
+                            Text("Subtotal:", style = MaterialTheme.typography.bodySmall)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodySmall)
                         }
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Total GST:", style = MaterialTheme.typography.bodyMedium)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", style = MaterialTheme.typography.bodyMedium)
+                            Text("Total GST:", style = MaterialTheme.typography.bodySmall)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", style = MaterialTheme.typography.bodySmall)
                         }
                     }
+
+                    if (discountAmount > 0) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Total Before Discount:", style = MaterialTheme.typography.bodySmall)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmountBeforeDiscount)}", style = MaterialTheme.typography.bodySmall)
+                        }
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Discount:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
+                            Text("-₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 
+                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                        }
+                    }
+
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                         Text("Grand Total:", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
                         Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}",
@@ -430,11 +487,14 @@ fun BillingScreen(
                             val amountForBill = totalAmount
                             val phoneForBill = customerPhone.ifBlank { null }
                             val gstEnabledForBill = isGstEnabled
-                            viewModel.generateBill(phoneForBill) { sale ->
+                            val discountAmountForBill = discountAmount
+                            viewModel.generateBill(phoneForBill, amountForBill) { sale ->
                                 // Save snapshot of data for later PDF generation
                                 lastPaidItems = itemsForBill
                                 lastPaidAmount = amountForBill
                                 lastPaidGstEnabled = gstEnabledForBill
+                                lastPaidDiscountAmount = discountAmountForBill
+                                discountInput = ""
                                 Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
                                 showPaymentDialog = false
                                 showShareDialog = true
@@ -484,7 +544,8 @@ fun BillingScreen(
                         cartItems = lastPaidItems,
                         totalAmount = lastPaidAmount,
                         customerPhone = customerPhone.ifBlank { null },
-                        isGstEnabled = lastPaidGstEnabled
+                        isGstEnabled = lastPaidGstEnabled,
+                        discountAmount = lastPaidDiscountAmount
                     )
 
                     finalFile?.let { file ->
@@ -540,7 +601,8 @@ fun BillingScreen(
                         cartItems = lastPaidItems,
                         totalAmount = lastPaidAmount,
                         customerPhone = customerPhone.ifBlank { null },
-                        isGstEnabled = lastPaidGstEnabled
+                        isGstEnabled = lastPaidGstEnabled,
+                        discountAmount = lastPaidDiscountAmount
                     )
                     customerPhone = ""
                     showShareDialog = false 

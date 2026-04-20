@@ -28,7 +28,8 @@ object PdfGenerator {
         cartItems: List<CartItem>,
         totalAmount: Double,
         customerPhone: String? = null,
-        isGstEnabled: Boolean = true
+        isGstEnabled: Boolean = true,
+        discountAmount: Double = 0.0
     ): File? {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
@@ -110,7 +111,18 @@ object PdfGenerator {
         // Summary
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText("Total Items: ${cartItems.sumOf { it.quantity }}", 40f, y, paint)
+        
+        if (discountAmount > 0) {
+            paint.textSize = 12f
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            canvas.drawText("Subtotal (incl. GST): ₹${String.format(Locale.getDefault(), "%.2f", totalAmount + discountAmount)}", 380f, y, paint)
+            y += 15f
+            canvas.drawText("Discount: -₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 380f, y, paint)
+            y += 20f
+        }
+
         paint.textSize = 14f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText("Total Amount: ₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 380f, y, paint)
         y += 40f
 
