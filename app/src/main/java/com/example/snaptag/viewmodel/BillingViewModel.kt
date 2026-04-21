@@ -90,17 +90,6 @@ class BillingViewModel(private val repository: ProductRepository) : ViewModel() 
         subtotal + gst
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
 
-    val totalAmountBeforeDiscount: StateFlow<Double> = combine(_cartItems, _isGstEnabled) { items, gstEnabled ->
-        items.sumOf { item ->
-            val basePrice = item.price * item.quantity
-            if (gstEnabled && item.gstPercentage != null) {
-                basePrice + (basePrice * item.gstPercentage / 100.0)
-            } else {
-                basePrice
-            }
-        }
-    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), 0.0)
-
     fun updateSearchQuery(query: String) {
         _searchQuery.value = query
     }

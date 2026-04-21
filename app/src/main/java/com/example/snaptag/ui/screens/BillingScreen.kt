@@ -53,9 +53,9 @@ fun BillingScreen(
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val totalItems by viewModel.totalItems.collectAsState()
-    val totalAmountBeforeDiscount by viewModel.totalAmountBeforeDiscount.collectAsState()
     val totalAmount by viewModel.totalAmount.collectAsState()
     val subtotalAmount by viewModel.subtotalAmount.collectAsState()
+    val discountedSubtotal by viewModel.discountedSubtotal.collectAsState()
     val totalGstAmount by viewModel.totalGstAmount.collectAsState()
     val isGstEnabled by viewModel.isGstEnabled.collectAsState()
     val discountValue by viewModel.discountValue.collectAsState()
@@ -268,30 +268,29 @@ fun BillingScreen(
                     HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
 
                     Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Text("Total Items:", style = MaterialTheme.typography.bodyMedium)
-                        Text("$totalItems", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                    }
-                    
-                    if (isGstEnabled && totalGstAmount > 0) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Subtotal:", style = MaterialTheme.typography.bodySmall)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Total GST:", style = MaterialTheme.typography.bodySmall)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", style = MaterialTheme.typography.bodySmall)
-                        }
+                        Text("Items Total:", style = MaterialTheme.typography.bodyMedium)
+                        Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                     }
 
                     if (discountAmount > 0) {
                         Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Total Before Discount:", style = MaterialTheme.typography.bodySmall)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmountBeforeDiscount)}", style = MaterialTheme.typography.bodySmall)
-                        }
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
                             Text("Discount:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
                             Text("-₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 
                                 style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
+                        }
+                        
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            Text("Taxable Amount:", style = MaterialTheme.typography.bodySmall)
+                            Text("₹${String.format(Locale.getDefault(), "%.2f", discountedSubtotal)}", style = MaterialTheme.typography.bodySmall)
+                        }
+                    }
+
+                    if (isGstEnabled && totalGstAmount > 0) {
+                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+                            val avgGst = if (subtotalAmount > 0) (totalGstAmount / (subtotalAmount - discountAmount).coerceAtLeast(1.0) * 100) else 0.0
+                            Text("GST:", style = MaterialTheme.typography.bodyMedium)
+                            Text("+₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", 
+                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
                         }
                     }
 
@@ -686,8 +685,7 @@ fun CartItemRow(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(item.name, fontWeight = FontWeight.SemiBold)
-                val gstText = if (item.gstPercentage != null) " (GST ${item.gstPercentage}%)" else ""
-                Text("₹${item.price}$gstText x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
+                Text("₹${item.price} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {

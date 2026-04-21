@@ -74,10 +74,8 @@ object PdfGenerator {
         // Table Header
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText("Item Name", 40f, y, paint)
-        canvas.drawText("Qty", 250f, y, paint)
-        canvas.drawText("Price", 310f, y, paint)
-        canvas.drawText("GST %", 380f, y, paint)
-        canvas.drawText("GST ₹", 440f, y, paint)
+        canvas.drawText("Qty", 350f, y, paint)
+        canvas.drawText("Price", 430f, y, paint)
         canvas.drawText("Total", 510f, y, paint)
         y += 10f
         canvas.drawLine(40f, y, 555f, y, paint)
@@ -85,22 +83,23 @@ object PdfGenerator {
 
         // Table Items
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        var totalItemsGst = 0.0
+        val itemsSubtotal = cartItems.sumOf { it.price * it.quantity }
+        val discountFactor = if (itemsSubtotal > 0) (itemsSubtotal - discountAmount).coerceAtLeast(0.0) / itemsSubtotal else 1.0
+
         cartItems.forEach { item ->
             canvas.drawText(item.name, 40f, y, paint)
-            canvas.drawText(item.quantity.toString(), 250f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price), 310f, y, paint)
+            canvas.drawText(item.quantity.toString(), 350f, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price), 430f, y, paint)
             
-            val gstPercent = if (isGstEnabled) (item.gstPercentage ?: 0.0) else 0.0
-            val gstValue = if (isGstEnabled && item.gstPercentage != null) {
-                (item.price * item.quantity * item.gstPercentage / 100.0)
-            } else {
-                0.0
+            val lineTotal = item.price * item.quantity
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", lineTotal), 510f, y, paint)
+            
+            if (isGstEnabled && item.gstPercentage != null) {
+                val discountedBase = lineTotal * discountFactor
+                totalItemsGst += (discountedBase * item.gstPercentage / 100.0)
             }
-            val itemTotal = (item.price * item.quantity) + gstValue
-
-            canvas.drawText(String.format(Locale.getDefault(), "%.1f%%", gstPercent), 380f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", gstValue), 440f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", itemTotal), 510f, y, paint)
+            
             y += 20f
         }
 
@@ -112,18 +111,38 @@ object PdfGenerator {
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
         canvas.drawText("Total Items: ${cartItems.sumOf { it.quantity }}", 40f, y, paint)
         
+        paint.textSize = 12f
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+        
+        // Subtotal
+        canvas.drawText("Items Total:", 380f, y, paint)
+        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", itemsSubtotal)}", 510f, y, paint)
+        y += 15f
+
+        // Discount
         if (discountAmount > 0) {
-            paint.textSize = 12f
-            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-            canvas.drawText("Subtotal (incl. GST): ₹${String.format(Locale.getDefault(), "%.2f", totalAmount + discountAmount)}", 380f, y, paint)
+            canvas.drawText("Discount:", 380f, y, paint)
+            canvas.drawText("-₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 510f, y, paint)
             y += 15f
-            canvas.drawText("Discount: -₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 380f, y, paint)
-            y += 20f
+            
+            val taxableAmount = (itemsSubtotal - discountAmount).coerceAtLeast(0.0)
+            canvas.drawText("Taxable Amount:", 380f, y, paint)
+            canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", taxableAmount)}", 510f, y, paint)
+            y += 15f
         }
 
+        // GST
+        if (isGstEnabled && totalItemsGst > 0) {
+            canvas.drawText("GST:", 380f, y, paint)
+            canvas.drawText("+₹${String.format(Locale.getDefault(), "%.2f", totalItemsGst)}", 510f, y, paint)
+            y += 15f
+        }
+
+        y += 5f
         paint.textSize = 14f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Total Amount: ₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 380f, y, paint)
+        canvas.drawText("Grand Total:", 380f, y, paint)
+        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 510f, y, paint)
         y += 40f
 
         // Footer
