@@ -11,7 +11,13 @@ data class SaleEntity(
     val timestamp: Long,
     val totalItems: Int,
     val totalAmount: Double,
-    val customerPhone: String? = null
+    val customerPhone: String? = null,
+    val subtotal: Double = 0.0,
+    val totalItemDiscounts: Double = 0.0,
+    val billDiscountAmount: Double = 0.0,
+    val billDiscountPercent: Double = 0.0,
+    val totalTaxableValue: Double = 0.0,
+    val totalGst: Double = 0.0
 )
 
 @Entity(
@@ -32,5 +38,11 @@ data class SaleItemEntity(
     val productName: String,
     val quantity: Int,
     val price: Double,
-    val gstPercentage: Double? = null
+    val gstPercentage: Double? = null,
+    val discountPercent: Double = 0.0,
+    val itemDiscountAmount: Double = 0.0,
+    val billDiscountShare: Double = 0.0,
+    val taxableValue: Double = 0.0,
+    val gstAmount: Double = 0.0,
+    val finalTotal: Double = 0.0
 )

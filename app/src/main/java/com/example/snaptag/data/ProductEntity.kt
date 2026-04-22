@@ -10,8 +10,9 @@ data class ProductEntity(
     val price: Double,
     val stock: Int,
     val barcode: String? = null,
-    val gstPercentage: Double? = null
+    val gstPercent: Double = 0.0,
+    val discountPercent: Double = 0.0
 )
 
-fun ProductEntity.toProduct() = Product(id, name, price, stock, barcode, gstPercentage)
-fun Product.toEntity() = ProductEntity(id, name, price, stock, barcode, gstPercentage)
+fun ProductEntity.toProduct() = Product(id, name, price, stock, barcode, gstPercent, discountPercent)
+fun Product.toEntity() = ProductEntity(id, name, price, stock, barcode, gstPercent, discountPercent)

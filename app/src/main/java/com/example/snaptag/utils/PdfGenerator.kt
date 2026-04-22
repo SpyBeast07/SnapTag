@@ -25,11 +25,9 @@ object PdfGenerator {
         email: String,
         gst: String,
         footerNote: String,
-        cartItems: List<CartItem>,
-        totalAmount: Double,
+        billSummary: BillSummary,
         customerPhone: String? = null,
-        isGstEnabled: Boolean = true,
-        discountAmount: Double = 0.0
+        isGstEnabled: Boolean = true
     ): File? {
         val pdfDocument = PdfDocument()
         val pageInfo = PdfDocument.PageInfo.Builder(595, 842, 1).create()
@@ -50,104 +48,143 @@ object PdfGenerator {
         canvas.drawText(shopName, 297f, y, titlePaint)
         y += 25f
 
-        paint.textSize = 12f
+        paint.textSize = 10f
         paint.textAlign = Paint.Align.CENTER
         canvas.drawText(address, 297f, y, paint)
         y += 15f
         canvas.drawText("Phone: $phone", 297f, y, paint)
-        y += 15f
+        y += 12f
         if (email.isNotEmpty()) {
             canvas.drawText("Email: $email", 297f, y, paint)
-            y += 15f
+            y += 12f
         }
         if (gst.isNotEmpty()) {
-            canvas.drawText("GST: $gst", 297f, y, paint)
-            y += 15f
+            canvas.drawText("GSTIN: $gst", 297f, y, paint)
+            y += 12f
         }
 
         y += 20f
         paint.textAlign = Paint.Align.LEFT
+        paint.textSize = 10f
         canvas.drawText("Bill ID: $billId", 40f, y, paint)
-        canvas.drawText("Date: $dateTime", 350f, y, paint)
-        y += 30f
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("Date: $dateTime", 555f, y, paint)
+        y += 15f
+        if (!customerPhone.isNullOrBlank()) {
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("Customer: $customerPhone", 40f, y, paint)
+            y += 15f
+        }
 
+        y += 10f
         // Table Header
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Item Name", 40f, y, paint)
-        canvas.drawText("Qty", 350f, y, paint)
-        canvas.drawText("Price", 430f, y, paint)
-        canvas.drawText("Total", 510f, y, paint)
-        y += 10f
+        paint.textAlign = Paint.Align.LEFT
+        paint.textSize = 9f
+        
+        val colItem = 40f
+        val colQty = 200f
+        val colPrice = 240f
+        val colDisc = 300f
+        val colTaxable = 370f
+        val colGst = 440f
+        val colTotal = 510f
+
+        canvas.drawText("Item", colItem, y, paint)
+        canvas.drawText("Qty", colQty, y, paint)
+        canvas.drawText("Price", colPrice, y, paint)
+        canvas.drawText("Disc", colDisc, y, paint)
+        canvas.drawText("Taxable", colTaxable, y, paint)
+        canvas.drawText("GST", colGst, y, paint)
+        canvas.drawText("Total", colTotal, y, paint)
+        
+        y += 5f
         canvas.drawLine(40f, y, 555f, y, paint)
-        y += 20f
+        y += 15f
 
         // Table Items
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        var totalItemsGst = 0.0
-        val itemsSubtotal = cartItems.sumOf { it.price * it.quantity }
-        val discountFactor = if (itemsSubtotal > 0) (itemsSubtotal - discountAmount).coerceAtLeast(0.0) / itemsSubtotal else 1.0
-
-        cartItems.forEach { item ->
-            canvas.drawText(item.name, 40f, y, paint)
-            canvas.drawText(item.quantity.toString(), 350f, y, paint)
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.price), 430f, y, paint)
+        billSummary.items.forEach { item ->
+            val cartItem = item.cartItem
+            canvas.drawText(if (cartItem.name.length > 25) cartItem.name.substring(0, 22) + "..." else cartItem.name, colItem, y, paint)
+            canvas.drawText(cartItem.quantity.toString(), colQty, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", cartItem.price), colPrice, y, paint)
             
-            val lineTotal = item.price * item.quantity
-            canvas.drawText(String.format(Locale.getDefault(), "%.2f", lineTotal), 510f, y, paint)
+            val totalDisc = item.itemDiscountAmount + item.billDiscountShare
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", totalDisc), colDisc, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.finalTaxableValue), colTaxable, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f (%.0f%%)", item.gstAmount, cartItem.gstPercent), colGst, y, paint)
+            canvas.drawText(String.format(Locale.getDefault(), "%.2f", item.finalItemTotal), colTotal, y, paint)
             
-            if (isGstEnabled && item.gstPercentage != null) {
-                val discountedBase = lineTotal * discountFactor
-                totalItemsGst += (discountedBase * item.gstPercentage / 100.0)
+            y += 15f
+            
+            // Basic page break check
+            if (y > 750f) {
+                // Not handling multiple pages for now as per simple project scope, but added check
+                return@forEach
             }
-            
-            y += 20f
         }
 
-        y += 10f
+        y += 5f
         canvas.drawLine(40f, y, 555f, y, paint)
-        y += 25f
+        y += 20f
 
         // Summary
-        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Total Items: ${cartItems.sumOf { it.quantity }}", 40f, y, paint)
+        val summaryX = 370f
+        val valueX = 555f
+        paint.textAlign = Paint.Align.LEFT
         
-        paint.textSize = 12f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
-        
-        // Subtotal
-        canvas.drawText("Items Total:", 380f, y, paint)
-        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", itemsSubtotal)}", 510f, y, paint)
+        canvas.drawText("Items Total:", summaryX, y, paint)
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", billSummary.subtotal)}", valueX, y, paint)
         y += 15f
 
-        // Discount
-        if (discountAmount > 0) {
-            canvas.drawText("Discount:", 380f, y, paint)
-            canvas.drawText("-₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 510f, y, paint)
-            y += 15f
-            
-            val taxableAmount = (itemsSubtotal - discountAmount).coerceAtLeast(0.0)
-            canvas.drawText("Taxable Amount:", 380f, y, paint)
-            canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", taxableAmount)}", 510f, y, paint)
+        if (billSummary.totalItemDiscounts > 0) {
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("Item Discounts:", summaryX, y, paint)
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("-₹${String.format(Locale.getDefault(), "%.2f", billSummary.totalItemDiscounts)}", valueX, y, paint)
             y += 15f
         }
 
-        // GST
-        if (isGstEnabled && totalItemsGst > 0) {
-            canvas.drawText("GST:", 380f, y, paint)
-            canvas.drawText("+₹${String.format(Locale.getDefault(), "%.2f", totalItemsGst)}", 510f, y, paint)
+        if (billSummary.billDiscountAmount > 0) {
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("Bill Discount:", summaryX, y, paint)
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("-₹${String.format(Locale.getDefault(), "%.2f", billSummary.billDiscountAmount)}", valueX, y, paint)
+            y += 15f
+        }
+
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+        paint.textAlign = Paint.Align.LEFT
+        canvas.drawText("Taxable Value:", summaryX, y, paint)
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", billSummary.totalTaxableValue)}", valueX, y, paint)
+        y += 15f
+
+        if (isGstEnabled && billSummary.totalGst > 0) {
+            paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.NORMAL)
+            paint.textAlign = Paint.Align.LEFT
+            canvas.drawText("Total GST:", summaryX, y, paint)
+            paint.textAlign = Paint.Align.RIGHT
+            canvas.drawText("+₹${String.format(Locale.getDefault(), "%.2f", billSummary.totalGst)}", valueX, y, paint)
             y += 15f
         }
 
         y += 5f
         paint.textSize = 14f
         paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
-        canvas.drawText("Grand Total:", 380f, y, paint)
-        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 510f, y, paint)
+        paint.textAlign = Paint.Align.LEFT
+        canvas.drawText("Grand Total:", summaryX, y, paint)
+        paint.textAlign = Paint.Align.RIGHT
+        canvas.drawText("₹${String.format(Locale.getDefault(), "%.2f", billSummary.grandTotal)}", valueX, y, paint)
         y += 40f
 
         // Footer
-        paint.textSize = 12f
+        paint.textSize = 10f
         paint.textAlign = Paint.Align.CENTER
+        paint.typeface = Typeface.create(Typeface.DEFAULT, Typeface.ITALIC)
         canvas.drawText(footerNote, 297f, y, paint)
 
         pdfDocument.finishPage(page)

@@ -87,7 +87,7 @@ class ProductViewModel(private val repository: ProductRepository, application: A
         _searchQuery.value = query
     }
 
-    fun addProduct(name: String, price: Double, stock: Int, barcode: String? = null, gst: Double? = null) {
+    fun addProduct(name: String, price: Double, stock: Int, barcode: String? = null, gst: Double = 0.0, discount: Double = 0.0) {
         viewModelScope.launch {
             val newProduct = Product(
                 id = UUID.randomUUID().toString(),
@@ -95,7 +95,8 @@ class ProductViewModel(private val repository: ProductRepository, application: A
                 price = price,
                 stock = stock,
                 barcode = barcode,
-                gstPercentage = gst
+                gstPercent = gst,
+                discountPercent = discount
             )
             repository.insert(newProduct)
         }

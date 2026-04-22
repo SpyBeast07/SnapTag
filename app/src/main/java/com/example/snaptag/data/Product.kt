@@ -6,5 +6,6 @@ data class Product(
     val price: Double,
     val stock: Int,
     val barcode: String? = null,
-    val gstPercentage: Double? = null
+    val gstPercent: Double = 0.0,
+    val discountPercent: Double = 0.0
 )

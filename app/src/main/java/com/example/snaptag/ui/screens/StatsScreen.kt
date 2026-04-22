@@ -1,5 +1,6 @@
 package com.example.snaptag.ui.screens
 
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -85,26 +86,62 @@ fun StatsScreen(viewModel: StatsViewModel) {
 @Composable
 fun SaleListItem(sale: SaleEntity) {
     val sdf = SimpleDateFormat("dd MMM, hh:mm a", Locale.getDefault())
+    var expanded by remember { mutableStateOf(false) }
+
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable { expanded = !expanded },
         elevation = CardDefaults.cardElevation(defaultElevation = 1.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .padding(16.dp)
-                .fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column {
-                Text(text = "Order #${sale.id}", fontWeight = FontWeight.Bold)
-                Text(text = sdf.format(Date(sale.timestamp)), style = MaterialTheme.typography.bodySmall)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column {
+                    Text(text = "Order #${sale.id}", fontWeight = FontWeight.Bold)
+                    Text(text = sdf.format(Date(sale.timestamp)), style = MaterialTheme.typography.bodySmall)
+                }
+                Column(horizontalAlignment = Alignment.End) {
+                    Text(
+                        text = "₹${String.format(Locale.getDefault(), "%.2f", sale.totalAmount)}",
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                    Text(text = "${sale.totalItems} Items", style = MaterialTheme.typography.bodySmall)
+                }
             }
-            Column(horizontalAlignment = Alignment.End) {
-                Text(text = "₹${String.format(Locale.getDefault(), "%.2f", sale.totalAmount)}", fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
-                Text(text = "${sale.totalItems} Items", style = MaterialTheme.typography.bodySmall)
+
+            if (expanded) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 8.dp))
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    DetailRow("Subtotal", sale.subtotal)
+                    if (sale.totalItemDiscounts > 0) DetailRow("Item Discounts", -sale.totalItemDiscounts, color = MaterialTheme.colorScheme.error)
+                    if (sale.billDiscountAmount > 0) DetailRow("Bill Discount (${sale.billDiscountPercent}%)", -sale.billDiscountAmount, color = MaterialTheme.colorScheme.error)
+                    DetailRow("Taxable Value", sale.totalTaxableValue, fontWeight = FontWeight.Bold)
+                    if (sale.totalGst > 0) DetailRow("GST", sale.totalGst)
+                    if (sale.customerPhone != null) {
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Text("Customer: ${sale.customerPhone}", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                    }
+                }
             }
         }
+    }
+}
+
+@Composable
+fun DetailRow(label: String, amount: Double, color: Color = Color.Unspecified, fontWeight: FontWeight = FontWeight.Normal) {
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+        Text(label, style = MaterialTheme.typography.bodySmall, fontWeight = fontWeight)
+        Text(
+            "${if (amount < 0) "-" else ""}₹${String.format(Locale.getDefault(), "%.2f", Math.abs(amount))}",
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Bold,
+            color = color
+        )
     }
 }
 

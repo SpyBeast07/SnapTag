@@ -19,7 +19,7 @@ fun ProductDialog(
     initialBarcode: String = "",
     existingProducts: List<Product> = emptyList(),
     onDismiss: () -> Unit,
-    onSave: (name: String, price: Double, stock: Int, barcode: String?, gst: Double?) -> Unit,
+    onSave: (name: String, price: Double, stock: Int, barcode: String?, gst: Double, discount: Double) -> Unit,
     onUpdateExisting: ((Product, Int) -> Unit)? = null,
     onDelete: (() -> Unit)? = null,
     onScanRequest: () -> Unit = {}
@@ -28,7 +28,8 @@ fun ProductDialog(
     var price by remember { mutableStateOf(product?.price?.toString() ?: initialPrice) }
     var stock by remember { mutableStateOf(product?.stock?.toString() ?: "1") }
     var barcode by remember { mutableStateOf(product?.barcode ?: initialBarcode) }
-    var gst by remember { mutableStateOf(product?.gstPercentage?.toString() ?: "") }
+    var gst by remember { mutableStateOf(product?.gstPercent?.toString() ?: "") }
+    var discount by remember { mutableStateOf(product?.discountPercent?.toString() ?: "") }
 
     LaunchedEffect(initialBarcode) {
         if (initialBarcode.isNotEmpty()) {
@@ -39,7 +40,8 @@ fun ProductDialog(
     LaunchedEffect(product) {
         if (product != null && initialBarcode.isEmpty()) {
             barcode = product.barcode ?: ""
-            gst = product.gstPercentage?.toString() ?: ""
+            gst = product.gstPercent.toString()
+            discount = product.discountPercent.toString()
         }
     }
 
@@ -103,7 +105,14 @@ fun ProductDialog(
                 TextField(
                     value = gst,
                     onValueChange = { gst = it },
-                    label = { Text("GST (%) - Optional") },
+                    label = { Text("GST (%)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    modifier = Modifier.fillMaxWidth()
+                )
+                TextField(
+                    value = discount,
+                    onValueChange = { discount = it },
+                    label = { Text("Discount (%)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     modifier = Modifier.fillMaxWidth()
                 )
@@ -121,7 +130,8 @@ fun ProductDialog(
                 onClick = {
                     val p = price.toDoubleOrNull() ?: 0.0
                     val s = stock.toIntOrNull() ?: 0
-                    val g = gst.toDoubleOrNull()
+                    val g = gst.toDoubleOrNull() ?: 0.0
+                    val d = discount.toDoubleOrNull() ?: 0.0
                     if (name.isNotBlank()) {
                         val duplicate = if (product == null) {
                             existingProducts.find { 
@@ -133,7 +143,7 @@ fun ProductDialog(
                         if (duplicate != null) {
                             showDuplicateDialog = duplicate
                         } else {
-                            onSave(name, p, s, if (barcode.isBlank()) null else barcode.trim(), g)
+                            onSave(name, p, s, if (barcode.isBlank()) null else barcode.trim(), g, d)
                         }
                     }
                 }

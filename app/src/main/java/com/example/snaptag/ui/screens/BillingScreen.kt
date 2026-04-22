@@ -17,6 +17,7 @@ import androidx.compose.ui.window.PopupProperties
 import coil.compose.AsyncImage
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.border
 import android.content.Intent
@@ -41,6 +42,7 @@ import com.example.snaptag.ui.components.TopBar
 import com.example.snaptag.ui.components.SearchBar
 import com.example.snaptag.viewmodel.BillingViewModel
 import com.example.snaptag.viewmodel.CartItem
+import com.example.snaptag.utils.BillSummary
 import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -53,14 +55,10 @@ fun BillingScreen(
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
     val totalItems by viewModel.totalItems.collectAsState()
-    val totalAmount by viewModel.totalAmount.collectAsState()
-    val subtotalAmount by viewModel.subtotalAmount.collectAsState()
-    val discountedSubtotal by viewModel.discountedSubtotal.collectAsState()
-    val totalGstAmount by viewModel.totalGstAmount.collectAsState()
+    val billSummary by viewModel.billSummary.collectAsState()
     val isGstEnabled by viewModel.isGstEnabled.collectAsState()
-    val discountValue by viewModel.discountValue.collectAsState()
-    val isDiscountPercentage by viewModel.isDiscountPercentage.collectAsState()
-    val discountAmount by viewModel.discountAmount.collectAsState()
+    val billDiscountPercent by viewModel.billDiscountPercent.collectAsState()
+    
     val paymentQrUri by productViewModel.paymentQrUri.collectAsState()
     val shopName by productViewModel.shopName.collectAsState()
     val shopAddress by productViewModel.shopAddress.collectAsState()
@@ -74,18 +72,15 @@ fun BillingScreen(
     var showPaymentDialog by remember { mutableStateOf(false) }
     var showShareDialog by remember { mutableStateOf(false) }
     var customerPhone by remember { mutableStateOf("") }
-    var discountInput by remember { mutableStateOf("") }
+    var billDiscountInput by remember { mutableStateOf("") }
     
-    // Maintain a snapshot of the last paid cart to avoid using empty cart after viewModel.clearCart()
-    var lastPaidItems by remember { mutableStateOf<List<CartItem>>(emptyList()) }
-    var lastPaidAmount by remember { mutableStateOf(0.0) }
+    var lastPaidSummary by remember { mutableStateOf<BillSummary?>(null) }
     var lastPaidGstEnabled by remember { mutableStateOf(true) }
-    var lastPaidDiscountAmount by remember { mutableStateOf(0.0) }
 
     val context = LocalContext.current
     
-    LaunchedEffect(discountInput) {
-        viewModel.updateDiscount(discountInput.toDoubleOrNull() ?: 0.0)
+    LaunchedEffect(billDiscountInput) {
+        viewModel.updateBillDiscount(billDiscountInput.toDoubleOrNull() ?: 0.0)
     }
     val permissionLauncher = rememberLauncherForActivityResult(
         ActivityResultContracts.RequestPermission()
@@ -195,27 +190,27 @@ fun BillingScreen(
                 contentPadding = PaddingValues(vertical = 8.dp),
                 verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
-                if (cartItems.isEmpty()) {
+                if (billSummary.items.isEmpty()) {
                     item {
                         Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
                             Text("Cart is empty", color = Color.Gray)
                         }
                     }
                 } else {
-                    items(cartItems) { item ->
-                        val product = products.find { it.id == item.productId }
+                    items(billSummary.items) { item ->
+                        val product = products.find { it.id == item.cartItem.productId }
                         val context = LocalContext.current
                         CartItemRow(
-                            item = item,
+                            calculatedItem = item,
                             onIncrement = {
-                                if (product != null && item.quantity < product.stock) {
-                                    viewModel.incrementQuantity(item.productId)
+                                if (product != null && item.cartItem.quantity < product.stock) {
+                                    viewModel.incrementQuantity(item.cartItem.productId)
                                 } else {
                                     Toast.makeText(context, "Out of Stock", Toast.LENGTH_SHORT).show()
                                 }
                             },
-                            onDecrement = { viewModel.decrementQuantity(item.productId) },
-                            isAtMaxStock = product != null && item.quantity >= product.stock
+                            onDecrement = { viewModel.decrementQuantity(item.cartItem.productId) },
+                            isAtMaxStock = product != null && item.cartItem.quantity >= product.stock
                         )
                     }
                 }
@@ -223,81 +218,54 @@ fun BillingScreen(
 
             // Billing Summary
             Card(
-                modifier = Modifier.fillMaxWidth().padding(vertical = 8.dp),
+                modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Column(modifier = Modifier.padding(16.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
-                        Text("Include GST", style = MaterialTheme.typography.bodyMedium)
-                        Switch(
-                            checked = isGstEnabled,
-                            onCheckedChange = { viewModel.toggleGst(it) }
-                        )
-                    }
-
-                    // Discount Section
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
                     Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        Modifier.fillMaxWidth(),
+                        Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        Row(
+                            Modifier.weight(1f),
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.Start
+                        ) {
+                            Text("GST", style = MaterialTheme.typography.bodyMedium)
+                            Spacer(Modifier.width(8.dp))
+                            Switch(
+                                checked = isGstEnabled,
+                                onCheckedChange = { viewModel.toggleGst(it) },
+                                modifier = Modifier.scale(0.8f)
+                            )
+                        }
+
                         OutlinedTextField(
-                            value = discountInput,
-                            onValueChange = { discountInput = it },
-                            label = { Text("Discount") },
-                            modifier = Modifier.weight(1f),
+                            value = billDiscountInput,
+                            onValueChange = { billDiscountInput = it },
+                            label = { Text("Disc %", fontSize = 12.sp) },
+                            modifier = Modifier.weight(1f).height(50.dp),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                             ),
                             singleLine = true,
-                            suffix = { Text(if (isDiscountPercentage) "%" else "₹") }
-                        )
-                        
-                        FilterChip(
-                            selected = isDiscountPercentage,
-                            onClick = { viewModel.toggleDiscountType(true) },
-                            label = { Text("%") }
-                        )
-                        FilterChip(
-                            selected = !isDiscountPercentage,
-                            onClick = { viewModel.toggleDiscountType(false) },
-                            label = { Text("₹") }
+                            textStyle = MaterialTheme.typography.bodyMedium
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
 
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Text("Items Total:", style = MaterialTheme.typography.bodyMedium)
-                        Text("₹${String.format(Locale.getDefault(), "%.2f", subtotalAmount)}", style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
+                    SummaryRow("Subtotal:", billSummary.subtotal, style = MaterialTheme.typography.bodySmall)
+                    if (billSummary.totalItemDiscounts > 0 || billSummary.billDiscountAmount > 0) {
+                        val totalD = billSummary.totalItemDiscounts + billSummary.billDiscountAmount
+                        SummaryRow("Total Disc:", -totalD, color = MaterialTheme.colorScheme.error, style = MaterialTheme.typography.bodySmall)
                     }
-
-                    if (discountAmount > 0) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Discount:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.error)
-                            Text("-₹${String.format(Locale.getDefault(), "%.2f", discountAmount)}", 
-                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.error)
-                        }
-                        
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            Text("Taxable Amount:", style = MaterialTheme.typography.bodySmall)
-                            Text("₹${String.format(Locale.getDefault(), "%.2f", discountedSubtotal)}", style = MaterialTheme.typography.bodySmall)
-                        }
-                    }
-
-                    if (isGstEnabled && totalGstAmount > 0) {
-                        Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                            val avgGst = if (subtotalAmount > 0) (totalGstAmount / (subtotalAmount - discountAmount).coerceAtLeast(1.0) * 100) else 0.0
-                            Text("GST:", style = MaterialTheme.typography.bodyMedium)
-                            Text("+₹${String.format(Locale.getDefault(), "%.2f", totalGstAmount)}", 
-                                style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
-
-                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
-                        Text("Grand Total:", style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold)
-                        Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}",
-                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.Bold, color = MaterialTheme.colorScheme.primary)
+                    
+                    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween, verticalAlignment = Alignment.CenterVertically) {
+                        Text("Grand Total:", style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
+                        Text("₹${String.format(Locale.getDefault(), "%.2f", billSummary.grandTotal)}",
+                            style = MaterialTheme.typography.titleLarge, fontWeight = FontWeight.ExtraBold, color = MaterialTheme.colorScheme.primary)
                     }
                 }
             }
@@ -323,6 +291,7 @@ fun BillingScreen(
                     onClick = { 
                         HapticManager.strong(context)
                         viewModel.clearCart() 
+                        billDiscountInput = ""
                     },
                     modifier = Modifier.weight(1f),
                     colors = ButtonDefaults.outlinedButtonColors(contentColor = MaterialTheme.colorScheme.error),
@@ -457,7 +426,7 @@ fun BillingScreen(
                     Spacer(modifier = Modifier.height(16.dp))
                     
                     Text("Total Amount", style = MaterialTheme.typography.bodyMedium)
-                    Text("₹${String.format(Locale.getDefault(), "%.2f", totalAmount)}", 
+                    Text("₹${String.format(Locale.getDefault(), "%.2f", billSummary.grandTotal)}", 
                         style = MaterialTheme.typography.headlineMedium, 
                         fontWeight = FontWeight.ExtraBold,
                         color = MaterialTheme.colorScheme.primary
@@ -482,18 +451,12 @@ fun BillingScreen(
                     onClick = {
                         if (cartItems.isNotEmpty()) {
                             HapticManager.strong(context)
-                            val itemsForBill = cartItems.toList()
-                            val amountForBill = totalAmount
-                            val phoneForBill = customerPhone.ifBlank { null }
-                            val gstEnabledForBill = isGstEnabled
-                            val discountAmountForBill = discountAmount
-                            viewModel.generateBill(phoneForBill, amountForBill) { sale ->
-                                // Save snapshot of data for later PDF generation
-                                lastPaidItems = itemsForBill
-                                lastPaidAmount = amountForBill
-                                lastPaidGstEnabled = gstEnabledForBill
-                                lastPaidDiscountAmount = discountAmountForBill
-                                discountInput = ""
+                            val summaryToSave = billSummary
+                            val gstEnabledToSave = isGstEnabled
+                            viewModel.generateBill(customerPhone.ifBlank { null }) { sale ->
+                                lastPaidSummary = summaryToSave
+                                lastPaidGstEnabled = gstEnabledToSave
+                                billDiscountInput = ""
                                 Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
                                 showPaymentDialog = false
                                 showShareDialog = true
@@ -532,52 +495,52 @@ fun BillingScreen(
             confirmButton = {
                 Button(onClick = {
                     HapticManager.medium(context)
-                    val finalFile = PdfGenerator.generateBillPdf(
-                        context = context,
-                        shopName = shopName,
-                        address = shopAddress,
-                        phone = shopPhone,
-                        email = shopEmail,
-                        gst = shopGst,
-                        footerNote = footerNote,
-                        cartItems = lastPaidItems,
-                        totalAmount = lastPaidAmount,
-                        customerPhone = customerPhone.ifBlank { null },
-                        isGstEnabled = lastPaidGstEnabled,
-                        discountAmount = lastPaidDiscountAmount
-                    )
-
-                    finalFile?.let { file ->
-                        val uri = FileProvider.getUriForFile(
-                            context,
-                            "${context.packageName}.fileprovider",
-                            file
+                    lastPaidSummary?.let { summary ->
+                        val finalFile = PdfGenerator.generateBillPdf(
+                            context = context,
+                            shopName = shopName,
+                            address = shopAddress,
+                            phone = shopPhone,
+                            email = shopEmail,
+                            gst = shopGst,
+                            footerNote = footerNote,
+                            billSummary = summary,
+                            customerPhone = customerPhone.ifBlank { null },
+                            isGstEnabled = lastPaidGstEnabled
                         )
 
-                        val digits = customerPhone.filter { it.isDigit() }
-                        val cleanPhone = when {
-                            digits.length == 10 -> "91$digits"
-                            digits.length == 11 && digits.startsWith("0") -> "91${digits.substring(1)}"
-                            digits.length >= 12 -> digits
-                            else -> digits
-                        }
+                        finalFile?.let { file ->
+                            val uri = FileProvider.getUriForFile(
+                                context,
+                                "${context.packageName}.fileprovider",
+                                file
+                            )
 
-                        val intent = Intent(Intent.ACTION_SEND).apply {
-                            type = "application/pdf"
-                            putExtra(Intent.EXTRA_STREAM, uri)
-                            if (cleanPhone.isNotEmpty()) {
-                                putExtra("jid", "${cleanPhone}@s.whatsapp.net")
+                            val digits = customerPhone.filter { it.isDigit() }
+                            val cleanPhone = when {
+                                digits.length == 10 -> "91$digits"
+                                digits.length == 11 && digits.startsWith("0") -> "91${digits.substring(1)}"
+                                digits.length >= 12 -> digits
+                                else -> digits
                             }
-                            addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                        }
-                        
-                        intent.`package` = "com.whatsapp"
-                        
-                        try {
-                            context.startActivity(intent)
-                        } catch (e: Exception) {
-                            intent.`package` = null
-                            context.startActivity(Intent.createChooser(intent, "Share Bill"))
+
+                            val intent = Intent(Intent.ACTION_SEND).apply {
+                                type = "application/pdf"
+                                putExtra(Intent.EXTRA_STREAM, uri)
+                                if (cleanPhone.isNotEmpty()) {
+                                    putExtra("jid", "${cleanPhone}@s.whatsapp.net")
+                                }
+                                addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                            }
+                            
+                            intent.`package` = "com.whatsapp"
+                            
+                            try {
+                                context.startActivity(intent)
+                            } catch (e: Exception) {
+                                intent.`package` = null
+                                context.startActivity(Intent.createChooser(intent, "Share Bill"))
+                            }
                         }
                     }
                     customerPhone = ""
@@ -589,20 +552,20 @@ fun BillingScreen(
             dismissButton = {
                 TextButton(onClick = { 
                     HapticManager.light(context)
-                    PdfGenerator.generateBillPdf(
-                        context = context,
-                        shopName = shopName,
-                        address = shopAddress,
-                        phone = shopPhone,
-                        email = shopEmail,
-                        gst = shopGst,
-                        footerNote = footerNote,
-                        cartItems = lastPaidItems,
-                        totalAmount = lastPaidAmount,
-                        customerPhone = customerPhone.ifBlank { null },
-                        isGstEnabled = lastPaidGstEnabled,
-                        discountAmount = lastPaidDiscountAmount
-                    )
+                    lastPaidSummary?.let { summary ->
+                        PdfGenerator.generateBillPdf(
+                            context = context,
+                            shopName = shopName,
+                            address = shopAddress,
+                            phone = shopPhone,
+                            email = shopEmail,
+                            gst = shopGst,
+                            footerNote = footerNote,
+                            billSummary = summary,
+                            customerPhone = customerPhone.ifBlank { null },
+                            isGstEnabled = lastPaidGstEnabled
+                        )
+                    }
                     customerPhone = ""
                     showShareDialog = false 
                 }) {
@@ -610,6 +573,91 @@ fun BillingScreen(
                 }
             }
         )
+    }
+}
+
+@Composable
+fun SummaryRow(label: String, amount: Double, color: Color = Color.Unspecified, style: androidx.compose.ui.text.TextStyle = MaterialTheme.typography.bodyMedium) {
+    Row(Modifier.fillMaxWidth(), Arrangement.SpaceBetween) {
+        Text(label, style = style)
+        Text("${if (amount < 0) "-" else ""}₹${String.format(Locale.getDefault(), "%.2f", Math.abs(amount))}", 
+            style = style, fontWeight = FontWeight.Bold, color = color)
+    }
+}
+
+@Composable
+fun CartItemRow(
+    calculatedItem: com.example.snaptag.utils.CalculatedItem,
+    onIncrement: () -> Unit,
+    onDecrement: () -> Unit,
+    isAtMaxStock: Boolean
+) {
+    val context = LocalContext.current
+    val item = calculatedItem.cartItem
+    Card(
+        modifier = Modifier.fillMaxWidth(),
+        elevation = CardDefaults.cardElevation(1.dp)
+    ) {
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(item.name, fontWeight = FontWeight.SemiBold)
+                    Text("₹${item.price} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
+                }
+                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Text("₹${String.format(Locale.getDefault(), "%.2f", calculatedItem.finalItemTotal)}", 
+                        fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp), color = MaterialTheme.colorScheme.primary)
+                    
+                    IconButton(onClick = {
+                        HapticManager.light(context)
+                        onDecrement()
+                    }, modifier = Modifier.size(32.dp)) {
+                        Icon(Icons.Default.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
+                    }
+                    Text("${item.quantity}", modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.Bold)
+                    IconButton(
+                        onClick = {
+                            if (!isAtMaxStock) {
+                                HapticManager.light(context)
+                            }
+                            onIncrement()
+                        },
+                        modifier = Modifier.size(32.dp),
+                        colors = IconButtonDefaults.iconButtonColors(
+                            contentColor = if (isAtMaxStock) Color.Gray else MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Icon(Icons.Default.Add, contentDescription = null)
+                    }
+                }
+            }
+            
+            // Per-item breakdown
+            if (calculatedItem.itemDiscountAmount > 0 || calculatedItem.billDiscountShare > 0 || calculatedItem.gstAmount > 0) {
+                HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+                Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceBetween) {
+                    Column {
+                        if (calculatedItem.itemDiscountAmount > 0) {
+                            Text("Item Disc: -₹${calculatedItem.itemDiscountAmount} (${item.discountPercent}%)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                        if (calculatedItem.billDiscountShare > 0) {
+                            Text("Bill Disc Share: -₹${calculatedItem.billDiscountShare}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                    }
+                    Column(horizontalAlignment = Alignment.End) {
+                        Text("Taxable: ₹${calculatedItem.finalTaxableValue}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        if (calculatedItem.gstAmount > 0) {
+                            Text("GST: +₹${calculatedItem.gstAmount} (${item.gstPercent}%)", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
@@ -634,7 +682,8 @@ fun ProductExploreItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(product.name, fontWeight = FontWeight.SemiBold)
-                Text("₹${product.price} | Stock: ${product.stock}", style = MaterialTheme.typography.bodySmall)
+                Text("₹${product.price} | GST: ${product.gstPercent}% | Disc: ${product.discountPercent}%", style = MaterialTheme.typography.bodySmall)
+                Text("Stock: ${product.stock}", style = MaterialTheme.typography.labelSmall, color = Color.Gray)
             }
             
             Row(verticalAlignment = Alignment.CenterVertically) {
@@ -657,58 +706,6 @@ fun ProductExploreItem(
                     modifier = Modifier.size(32.dp),
                     colors = IconButtonDefaults.iconButtonColors(
                         contentColor = if (cartQuantity >= product.stock) Color.Gray else MaterialTheme.colorScheme.primary
-                    )
-                ) {
-                    Icon(Icons.Default.Add, contentDescription = null)
-                }
-            }
-        }
-    }
-}
-
-@Composable
-fun CartItemRow(
-    item: CartItem,
-    onIncrement: () -> Unit,
-    onDecrement: () -> Unit,
-    isAtMaxStock: Boolean
-) {
-    val context = LocalContext.current
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        elevation = CardDefaults.cardElevation(1.dp)
-    ) {
-        Row(
-            modifier = Modifier.padding(12.dp).fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(item.name, fontWeight = FontWeight.SemiBold)
-                Text("₹${item.price} x ${item.quantity}", style = MaterialTheme.typography.bodySmall)
-            }
-            
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text("₹${String.format(Locale.getDefault(), "%.2f", item.price * item.quantity)}", 
-                    fontWeight = FontWeight.Bold, modifier = Modifier.padding(end = 8.dp))
-                
-                IconButton(onClick = {
-                    HapticManager.light(context)
-                    onDecrement()
-                }, modifier = Modifier.size(32.dp)) {
-                    Icon(Icons.Default.Remove, contentDescription = null, tint = MaterialTheme.colorScheme.error)
-                }
-                Text("${item.quantity}", modifier = Modifier.padding(horizontal = 4.dp), fontWeight = FontWeight.Bold)
-                IconButton(
-                    onClick = {
-                        if (!isAtMaxStock) {
-                            HapticManager.light(context)
-                        }
-                        onIncrement()
-                    },
-                    modifier = Modifier.size(32.dp),
-                    colors = IconButtonDefaults.iconButtonColors(
-                        contentColor = if (isAtMaxStock) Color.Gray else MaterialTheme.colorScheme.primary
                     )
                 ) {
                     Icon(Icons.Default.Add, contentDescription = null)
