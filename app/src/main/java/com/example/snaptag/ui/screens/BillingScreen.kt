@@ -221,40 +221,49 @@ fun BillingScreen(
                 modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.primaryContainer)
             ) {
-                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(2.dp)) {
+                Column(modifier = Modifier.padding(12.dp), verticalArrangement = Arrangement.spacedBy(4.dp)) {
                     Row(
                         Modifier.fillMaxWidth(),
                         Arrangement.spacedBy(12.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
+                        // GST Toggle with a subtle border to match the text field
                         Row(
-                            Modifier.weight(1f),
+                            Modifier
+                                .weight(1f)
+                                .height(56.dp)
+                                .border(
+                                    width = 1.dp,
+                                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.5f),
+                                    shape = RoundedCornerShape(8.dp)
+                                )
+                                .padding(horizontal = 12.dp),
                             verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Start
+                            horizontalArrangement = Arrangement.SpaceBetween
                         ) {
                             Text("GST", style = MaterialTheme.typography.bodyMedium)
-                            Spacer(Modifier.width(8.dp))
                             Switch(
                                 checked = isGstEnabled,
                                 onCheckedChange = { viewModel.toggleGst(it) },
-                                modifier = Modifier.scale(0.8f)
+                                modifier = Modifier.scale(0.75f)
                             )
                         }
 
                         OutlinedTextField(
                             value = billDiscountInput,
                             onValueChange = { billDiscountInput = it },
-                            label = { Text("Disc %", fontSize = 12.sp) },
-                            modifier = Modifier.weight(1f).height(50.dp),
+                            label = { Text("Disc %", fontSize = 11.sp) },
+                            modifier = Modifier.weight(1f).height(56.dp),
                             keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(
                                 keyboardType = androidx.compose.ui.text.input.KeyboardType.Decimal
                             ),
                             singleLine = true,
-                            textStyle = MaterialTheme.typography.bodyMedium
+                            textStyle = MaterialTheme.typography.bodyMedium,
+                            shape = RoundedCornerShape(8.dp)
                         )
                     }
 
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), thickness = 0.5.dp)
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 2.dp), thickness = 0.5.dp)
 
                     SummaryRow("Subtotal:", billSummary.subtotal, style = MaterialTheme.typography.bodySmall)
                     if (billSummary.totalItemDiscounts > 0 || billSummary.billDiscountAmount > 0) {
