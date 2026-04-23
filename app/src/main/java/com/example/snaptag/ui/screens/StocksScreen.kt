@@ -2,7 +2,6 @@ package com.example.snaptag.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.layout.*
@@ -20,6 +19,12 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.Alignment
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import com.example.snaptag.utils.FeedbackManager
+import kotlinx.coroutines.launch
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelStoreOwner
@@ -42,10 +47,14 @@ fun StocksScreen(
     val products by viewModel.products.collectAsState()
     val searchQuery by viewModel.searchQuery.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     var showScanner by remember { mutableStateOf(false) }
     var isSearchScanning by remember { mutableStateOf(false) }
     var isDialogScanning by remember { mutableStateOf(false) }
     var selectedProduct by remember { mutableStateOf<Product?>(null) }
+    var productToDelete by remember { mutableStateOf<Product?>(null) }
     var isAddingProduct by remember { mutableStateOf(false) }
     var scannedPrice by remember { mutableStateOf("") }
     var scannedName by remember { mutableStateOf("") }
@@ -70,6 +79,7 @@ fun StocksScreen(
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
             topBar = { TopBar("SnapTag - Stocks") },
+            snackbarHost = { SnackbarHost(snackbarHostState) },
             floatingActionButton = {
                 FloatingActionButton(onClick = {
                     HapticManager.light(context)
@@ -114,28 +124,38 @@ fun StocksScreen(
                     modifier = Modifier.padding(bottom = 8.dp, start = 4.dp)
                 )
 
-                LazyColumn(
-                    modifier = Modifier.fillMaxSize(),
-                    contentPadding = PaddingValues(bottom = 80.dp)
-                ) {
-                    items(filteredProducts) { product ->
-                        ProductItem(
-                            product = product,
-                            onClick = { 
-                                HapticManager.light(context)
-                                selectedProduct = product 
-                            },
-                            onIncrement = {
-                                HapticManager.light(context)
-                                viewModel.updateProduct(product.copy(stock = product.stock + 1))
-                            },
-                            onDecrement = {
-                                if (product.stock > 0) {
+                if (products.isEmpty()) {
+                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Icon(Icons.Default.Search, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                            Text("No products yet", style = MaterialTheme.typography.titleMedium, color = Color.Gray)
+                            Text("Tap + to add your first product", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                        }
+                    }
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.fillMaxSize(),
+                        contentPadding = PaddingValues(bottom = 80.dp)
+                    ) {
+                        items(filteredProducts) { product ->
+                            ProductItem(
+                                product = product,
+                                onClick = { 
                                     HapticManager.light(context)
-                                    viewModel.updateProduct(product.copy(stock = product.stock - 1))
+                                    selectedProduct = product 
+                                },
+                                onIncrement = {
+                                    HapticManager.light(context)
+                                    viewModel.updateProduct(product.copy(stock = product.stock + 1))
+                                },
+                                onDecrement = {
+                                    if (product.stock > 0) {
+                                        HapticManager.light(context)
+                                        viewModel.updateProduct(product.copy(stock = product.stock - 1))
+                                    }
                                 }
-                            }
-                        )
+                            )
+                        }
                     }
                 }
             }
@@ -198,7 +218,7 @@ fun StocksScreen(
                         HapticManager.medium(context)
                         viewModel.updateProduct(existing.copy(stock = existing.stock + 1))
                         showConfirmIncrementDialog = null
-                        Toast.makeText(context, "Stock updated", Toast.LENGTH_SHORT).show()
+                        scope.launch { FeedbackManager.success(snackbarHostState, "Stock updated") }
                     }
                 ) {
                     Text("Increment Stock")
@@ -209,6 +229,36 @@ fun StocksScreen(
                     HapticManager.light(context)
                     showConfirmIncrementDialog = null 
                 }) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Delete Confirmation Dialog
+    if (productToDelete != null) {
+        AlertDialog(
+            onDismissRequest = { productToDelete = null },
+            title = { Text("Delete Product") },
+            text = { Text("Are you sure you want to delete '${productToDelete!!.name}'? This action cannot be undone.") },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        val product = productToDelete!!
+                        HapticManager.strong(context)
+                        viewModel.deleteProduct(product.id)
+                        scope.launch { FeedbackManager.success(snackbarHostState, "Product deleted") }
+                        productToDelete = null
+                        selectedProduct = null
+                        scannedBarcode = ""
+                    },
+                    colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error)
+                ) {
+                    Text("Delete")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { productToDelete = null }) {
                     Text("Cancel")
                 }
             }
@@ -227,9 +277,17 @@ fun StocksScreen(
                 isAddingProduct = false 
             },
             onSave = { name, price, stock, barcode, gst, discount ->
-                HapticManager.medium(context)
-                viewModel.addProduct(name, price, stock, barcode, gst, discount)
-                isAddingProduct = false
+                try {
+                    HapticManager.medium(context)
+                    viewModel.addProduct(name, price, stock, barcode, gst, discount)
+                    scope.launch { FeedbackManager.success(snackbarHostState, "Product added") }
+                    isAddingProduct = false
+                } catch (e: Exception) {
+                    scope.launch {
+                        val retry = FeedbackManager.error(snackbarHostState, "Failed to add product")
+                        if (retry) { /* Logic to retry can be added if needed, but here we just show error */ }
+                    }
+                }
             },
             onUpdateExisting = { existing, addedStock ->
                 HapticManager.medium(context)
@@ -274,10 +332,7 @@ fun StocksScreen(
                 scannedBarcode = ""
             },
             onDelete = {
-                HapticManager.strong(context)
-                viewModel.deleteProduct(product.id)
-                selectedProduct = null
-                scannedBarcode = ""
+                productToDelete = product
             },
             onScanRequest = {
                 HapticManager.light(context)

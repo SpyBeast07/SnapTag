@@ -2,7 +2,6 @@ package com.example.snaptag.ui.screens
 
 import android.Manifest
 import android.content.pm.PackageManager
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.clickable
@@ -27,6 +26,10 @@ import com.example.snaptag.utils.PdfGenerator
 import java.io.File
 import com.example.snaptag.viewmodel.ProductViewModel
 import androidx.compose.material3.*
+import androidx.compose.material3.SnackbarHost
+import androidx.compose.material3.SnackbarHostState
+import com.example.snaptag.utils.FeedbackManager
+import kotlinx.coroutines.launch
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -59,6 +62,9 @@ fun BillingScreen(
     val isGstEnabled by viewModel.isGstEnabled.collectAsState()
     val billDiscountPercent by viewModel.billDiscountPercent.collectAsState()
     
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
+
     val paymentQrUri by productViewModel.paymentQrUri.collectAsState()
     val shopName by productViewModel.shopName.collectAsState()
     val shopAddress by productViewModel.shopAddress.collectAsState()
@@ -98,7 +104,8 @@ fun BillingScreen(
             TopBar(
                 title = "SnapTag - Billing"
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         Column(
             modifier = Modifier
@@ -157,7 +164,8 @@ fun BillingScreen(
                                                         viewModel.addToCart(product)
                                                         viewModel.updateSearchQuery("")
                                                     } else {
-                                                        Toast.makeText(context, "Out of Stock", Toast.LENGTH_SHORT).show()
+                                                        HapticManager.light(context)
+                                                        scope.launch { FeedbackManager.success(snackbarHostState, "Out of Stock") }
                                                     }
                                                 }) {
                                                     Icon(Icons.Default.Add, contentDescription = "Add")
@@ -165,11 +173,12 @@ fun BillingScreen(
                                             },
                                             modifier = Modifier.clickable {
                                                 if ((cartItem?.quantity ?: 0) < product.stock) {
-                                                    HapticManager.medium(context)
+                                                    HapticManager.light(context)
                                                     viewModel.addToCart(product)
                                                     viewModel.updateSearchQuery("")
                                                 } else {
-                                                    Toast.makeText(context, "Out of Stock", Toast.LENGTH_SHORT).show()
+                                                    HapticManager.light(context)
+                                                    scope.launch { FeedbackManager.success(snackbarHostState, "Out of Stock") }
                                                 }
                                             }
                                         )
@@ -193,7 +202,11 @@ fun BillingScreen(
                 if (billSummary.items.isEmpty()) {
                     item {
                         Box(Modifier.fillParentMaxSize(), contentAlignment = Alignment.Center) {
-                            Text("Cart is empty", color = Color.Gray)
+                            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                                Icon(Icons.Default.ShoppingCart, contentDescription = null, modifier = Modifier.size(64.dp), tint = Color.Gray)
+                                Text("Cart is empty", color = Color.Gray)
+                                Text("Add products to start billing", style = MaterialTheme.typography.bodySmall, color = Color.Gray)
+                            }
                         }
                     }
                 } else {
@@ -206,7 +219,8 @@ fun BillingScreen(
                                 if (product != null && item.cartItem.quantity < product.stock) {
                                     viewModel.incrementQuantity(item.cartItem.productId)
                                 } else {
-                                    Toast.makeText(context, "Out of Stock", Toast.LENGTH_SHORT).show()
+                                    HapticManager.light(context)
+                                    scope.launch { FeedbackManager.success(snackbarHostState, "Out of Stock") }
                                 }
                             },
                             onDecrement = { viewModel.decrementQuantity(item.cartItem.productId) },
@@ -314,12 +328,15 @@ fun BillingScreen(
                 Button(
                     onClick = { 
                         if (cartItems.isNotEmpty()) {
-                            HapticManager.light(context)
+                            HapticManager.medium(context)
                             showPaymentDialog = true 
+                        } else {
+                            HapticManager.light(context)
+                            scope.launch { FeedbackManager.success(snackbarHostState, "Cart is empty") }
                         }
                     },
                     modifier = Modifier.weight(1f),
-                    enabled = cartItems.isNotEmpty()
+                    enabled = true // Always enabled to show feedback
                 ) {
                     Text("Generate Bill")
                 }
@@ -365,7 +382,8 @@ fun BillingScreen(
                                 if ((cartItem?.quantity ?: 0) < product.stock) {
                                     viewModel.addToCart(product)
                                 } else {
-                                    Toast.makeText(context, "Out of Stock", Toast.LENGTH_SHORT).show()
+                                    HapticManager.light(context)
+                                    scope.launch { FeedbackManager.success(snackbarHostState, "Out of Stock") }
                                 }
                             },
                             onDecrement = {
@@ -388,9 +406,9 @@ fun BillingScreen(
                     val product = products.find { it.barcode == barcode }
                     if (product != null) {
                         viewModel.addToCart(product)
-                        Toast.makeText(context, "Added: ${product.name}", Toast.LENGTH_SHORT).show()
+                        scope.launch { FeedbackManager.success(snackbarHostState, "Added: ${product.name}") }
                     } else {
-                        Toast.makeText(context, "Product not found", Toast.LENGTH_SHORT).show()
+                        scope.launch { FeedbackManager.success(snackbarHostState, "Product not found") }
                     }
                     showScanner = false
                 },
@@ -466,7 +484,10 @@ fun BillingScreen(
                                 lastPaidSummary = summaryToSave
                                 lastPaidGstEnabled = gstEnabledToSave
                                 billDiscountInput = ""
-                                Toast.makeText(context, "Bill Paid Successfully", Toast.LENGTH_LONG).show()
+                                scope.launch { 
+                                    FeedbackManager.success(snackbarHostState, "Payment successful")
+                                    FeedbackManager.success(snackbarHostState, "Bill generated")
+                                }
                                 showPaymentDialog = false
                                 showShareDialog = true
                             }

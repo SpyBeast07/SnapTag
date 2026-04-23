@@ -2,31 +2,30 @@ package com.example.snaptag.ui.screens
 
 import android.content.Context
 import android.net.Uri
-import android.os.Environment
-import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
-import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.ui.Alignment
-import androidx.compose.ui.draw.clip
-import androidx.compose.ui.layout.ContentScale
-import coil.compose.AsyncImage
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.lifecycle.ViewModelStoreOwner
+import androidx.lifecycle.viewmodel.compose.viewModel
+import coil.compose.AsyncImage
 import com.example.snaptag.data.Product
 import com.example.snaptag.ui.components.TopBar
+import com.example.snaptag.utils.FeedbackManager
 import com.example.snaptag.utils.HapticManager
 import com.example.snaptag.viewmodel.ProductViewModel
 import com.example.snaptag.viewmodel.ProductViewModelFactory
@@ -36,8 +35,6 @@ import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
-import java.io.File
-import java.io.FileOutputStream
 
 @Composable
 fun SettingsScreen(
@@ -59,6 +56,7 @@ fun SettingsScreen(
     val footerNote by viewModel.footerNote.collectAsState()
     val themeMode by viewModel.themeMode.collectAsState()
 
+    val snackbarHostState = remember { SnackbarHostState() }
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
 
@@ -70,8 +68,6 @@ fun SettingsScreen(
         contract = ActivityResultContracts.GetContent(),
         onResult = { uri ->
             uri?.let {
-                // Persist permission if needed or copy to internal storage
-                // For simplicity, we just save the URI string
                 context.contentResolver.takePersistableUriPermission(it, android.content.Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 viewModel.savePaymentQrUri(it.toString())
             }
@@ -82,7 +78,7 @@ fun SettingsScreen(
         contract = ActivityResultContracts.CreateDocument("application/json"),
         onResult = { uri ->
             uri?.let {
-                exportDataToUri(context, it, products, scope)
+                exportDataToUri(context, it, products, scope, snackbarHostState)
             }
         }
     )
@@ -91,7 +87,7 @@ fun SettingsScreen(
         contract = ActivityResultContracts.OpenDocument(),
         onResult = { uri ->
             uri?.let {
-                importData(context, it, viewModel, scope)
+                importData(context, it, viewModel, scope, snackbarHostState)
             }
         }
     )
@@ -107,7 +103,7 @@ fun SettingsScreen(
                         HapticManager.strong(context)
                         viewModel.clearAllData()
                         showClearDialog = false
-                        Toast.makeText(context, "All data cleared", Toast.LENGTH_SHORT).show()
+                        scope.launch { FeedbackManager.success(snackbarHostState, "All data cleared") }
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
                 ) {
@@ -222,7 +218,7 @@ fun SettingsScreen(
                     HapticManager.medium(context)
                     viewModel.updateReceiptDetails(tempName, tempAddress, tempPhone, tempEmail, tempGst, tempFooter)
                     showReceiptDialog = false
-                    Toast.makeText(context, "Receipt details updated", Toast.LENGTH_SHORT).show()
+                    scope.launch { FeedbackManager.success(snackbarHostState, "Settings saved") }
                 }) {
                     Text("Save")
                 }
@@ -239,7 +235,8 @@ fun SettingsScreen(
     }
 
     Scaffold(
-        topBar = { TopBar("SnapTag - Settings") }
+        topBar = { TopBar("SnapTag - Settings") },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { padding ->
         LazyColumn(
             modifier = Modifier
@@ -348,7 +345,7 @@ fun SettingsScreen(
     }
 }
 
-private fun exportDataToUri(context: Context, uri: Uri, products: List<Product>, scope: CoroutineScope) {
+private fun exportDataToUri(context: Context, uri: Uri, products: List<Product>, scope: CoroutineScope, snackbarHostState: SnackbarHostState) {
     scope.launch(Dispatchers.IO) {
         try {
             val gson = Gson()
@@ -359,17 +356,17 @@ private fun exportDataToUri(context: Context, uri: Uri, products: List<Product>,
             }
 
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "Backup saved successfully", Toast.LENGTH_LONG).show()
+                FeedbackManager.success(snackbarHostState, "Backup saved successfully")
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "Export failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                FeedbackManager.error(snackbarHostState, "Export failed: ${e.message}")
             }
         }
     }
 }
 
-private fun importData(context: Context, uri: Uri, viewModel: ProductViewModel, scope: CoroutineScope) {
+private fun importData(context: Context, uri: Uri, viewModel: ProductViewModel, scope: CoroutineScope, snackbarHostState: SnackbarHostState) {
     scope.launch(Dispatchers.IO) {
         try {
             val inputStream = context.contentResolver.openInputStream(uri)
@@ -382,12 +379,12 @@ private fun importData(context: Context, uri: Uri, viewModel: ProductViewModel, 
 
                 withContext(Dispatchers.Main) {
                     viewModel.importProducts(products)
-                    Toast.makeText(context, "Imported ${products.size} products", Toast.LENGTH_SHORT).show()
+                    FeedbackManager.success(snackbarHostState, "Imported ${products.size} products")
                 }
             }
         } catch (e: Exception) {
             withContext(Dispatchers.Main) {
-                Toast.makeText(context, "Import failed: ${e.message}", Toast.LENGTH_SHORT).show()
+                FeedbackManager.error(snackbarHostState, "Import failed: ${e.message}")
             }
         }
     }

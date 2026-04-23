@@ -1,6 +1,5 @@
 package com.example.snaptag.ui.screens
 
-import android.widget.Toast
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -17,6 +16,7 @@ import androidx.compose.ui.unit.dp
 import com.example.snaptag.data.SaleEntity
 import com.example.snaptag.utils.PdfGenerator
 import com.example.snaptag.viewmodel.StatsViewModel
+import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.*
 
@@ -29,6 +29,8 @@ fun SalesScreen(viewModel: StatsViewModel) {
     val allSales by viewModel.allSales.collectAsState()
 
     val context = LocalContext.current
+    val snackbarHostState = remember { SnackbarHostState() }
+    val scope = rememberCoroutineScope()
 
     Scaffold(
         topBar = {
@@ -48,17 +50,18 @@ fun SalesScreen(viewModel: StatsViewModel) {
                                 totalItemsSold
                             )
                             if (file != null) {
-                                Toast.makeText(context, "Report exported to Downloads/SnapTag/sales", Toast.LENGTH_LONG).show()
+                                scope.launch { com.example.snaptag.utils.FeedbackManager.success(snackbarHostState, "Report exported to Downloads/SnapTag/sales") }
                             }
                         } else {
-                            Toast.makeText(context, "No sales to export", Toast.LENGTH_SHORT).show()
+                            scope.launch { com.example.snaptag.utils.FeedbackManager.success(snackbarHostState, "No sales to export") }
                         }
                     }) {
                         Icon(Icons.Default.PictureAsPdf, contentDescription = "Export Report")
                     }
                 }
             )
-        }
+        },
+        snackbarHost = { SnackbarHost(snackbarHostState) }
     ) { paddingValues ->
         LazyColumn(
             modifier = Modifier

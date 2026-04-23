@@ -207,7 +207,11 @@ fun CameraScannerView(
                                                         }
 
                                                         val currentPrices = PriceDetector.detectPrices(elements, visionText.text)
-                                                        stablePrices = PriceDetector.updateStability(currentPrices)
+                                                        val newStablePrices = PriceDetector.updateStability(currentPrices)
+                                                        if (stablePrices.isEmpty() && newStablePrices.isNotEmpty()) {
+                                                            HapticManager.light(context)
+                                                        }
+                                                        stablePrices = newStablePrices
                                                     }
                                                     .addOnFailureListener { e ->
                                                         Log.e("CameraScanner", "OCR Failed", e)
